@@ -1,0 +1,141 @@
+:root {
+  color-scheme: light;
+  --bg: #f7f8fb;
+  --card-bg: #ffffff;
+  --text: #22324a;
+  --text-muted: #6b7a90;
+  --border: #dfe4ec;
+  --primary: #8f6b00;
+  --primary-hover: #6e5300;
+  --accent: #a5c2ed;
+  --error: #b3261e;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 32px 28px;
+  width: 100%;
+  max-width: 380px;
+}
+
+.logo {
+  display: block;
+  height: 40px;
+  margin-bottom: 16px;
+}
+
+.card h1 {
+  font-size: 1.3rem;
+  margin: 0 0 4px;
+}
+
+.card .subtitle {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin: 0 0 24px;
+}
+
+label {
+  display: block;
+  font-size: 0.85rem;
+  margin-bottom: 6px;
+  color: var(--text-muted);
+}
+
+input {
+  width: 100%;
+  padding: 10px 12px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 1rem;
+  background: var(--bg);
+  color: var(--text);
+}
+
+input:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: -1px;
+}
+
+button {
+  width: 100%;
+  padding: 11px;
+  border: none;
+  border-radius: 8px;
+  background: var(--primary);
+  color: white;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:hover {
+  background: var(--primary-hover);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.error {
+  color: var(--error);
+  font-size: 0.85rem;
+  margin: -8px 0 16px;
+  min-height: 1em;
+}
+
+.dashboard {
+  max-width: 480px;
+}
+
+.dashboard header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.badge {
+  display: inline-block;
+  background: var(--accent);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  color: var(--text);
+  margin-top: 4px;
+}
+
+.logout-link {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text);
+  width: auto;
+  padding: 8px 14px;
+  font-weight: 500;
+  font-size: 0.85rem;
+}
+
+.logout-link:hover {
+  background: var(--bg);
+}
