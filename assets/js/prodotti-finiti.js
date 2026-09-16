@@ -1,14 +1,17 @@
 let utenteCorrente = null;
 let unitaMisura = [];
 let materiePrime = [];
-let allergeni = [];
-let prodottoInModifica = null;
+let allergeniPerMateria = {}; // materia_prima_id -> [nomi allergeni]
+let ingredientiRighe = []; // {materiaPrimaId, unitaMisuraId, quantita}
 
 const form = document.getElementById('prodotto-form');
 const idInput = document.getElementById('prodotto-id');
+const codiceInput = document.getElementById('codice');
 const nomeInput = document.getElementById('nome');
 const unitaBaseSelect = document.getElementById('unita-base');
 const giorniPreavvisoInput = document.getElementById('giorni-preavviso');
+const resaQuantitaInput = document.getElementById('resa-quantita');
+const resaUnitaSelect = document.getElementById('resa-unita');
 const noteInput = document.getElementById('note');
 const errorMessage = document.getElementById('error-message');
 const formTitle = document.getElementById('form-title');
@@ -18,9 +21,11 @@ const tbody = document.getElementById('prodotti-tbody');
 const emptyState = document.getElementById('empty-state');
 const mostraDisattivatiCheck = document.getElementById('mostra-disattivati-check');
 
-const ricettaPanel = document.getElementById('ricetta-panel');
-const ricettaTitle = document.getElementById('ricetta-title');
-const ricettaContent = document.getElementById('ricetta-content');
+const ingredientiTbody = document.getElementById('ingredienti-tbody');
+const ingredienteMateriaSelect = document.getElementById('ingrediente-materia');
+const ingredienteUnitaSelect = document.getElementById('ingrediente-unita');
+const ingredienteQuantitaInput = document.getElementById('ingrediente-quantita');
+const allergeniAnteprima = document.getElementById('allergeni-anteprima');
 
 async function init() {
   utenteCorrente = await requireAuth(['direttore', 'responsabile_confezionamento']);
@@ -35,36 +40,37 @@ async function init() {
 
   await caricaUnitaMisura();
   await caricaMateriePrime();
-  await caricaAllergeni();
+  await caricaAllergeniPerMateria();
   await caricaProdotti();
 }
 
 async function caricaUnitaMisura() {
   const { data, error } = await supabaseClient.from('unita_misura').select('id, codice, nome').order('nome');
-  if (error) {
-    errorMessage.textContent = 'Errore caricamento unità di misura: ' + error.message;
-    return;
-  }
+  if (error) { errorMessage.textContent = 'Errore unità di misura: ' + error.message; return; }
   unitaMisura = data;
-  unitaBaseSelect.innerHTML = data.map(u => `<option value="${u.id}">${u.nome} (${u.codice})</option>`).join('');
+  const opzioni = data.map(u => `<option value="${u.id}">${u.nome} (${u.codice})</option>`).join('');
+  unitaBaseSelect.innerHTML = opzioni;
+  resaUnitaSelect.innerHTML = opzioni;
+  ingredienteUnitaSelect.innerHTML = opzioni;
 }
 
 async function caricaMateriePrime() {
   const { data, error } = await supabaseClient.from('materie_prime').select('id, nome, attivo').order('nome');
-  if (error) {
-    errorMessage.textContent = 'Errore caricamento materie prime: ' + error.message;
-    return;
-  }
+  if (error) { errorMessage.textContent = 'Errore materie prime: ' + error.message; return; }
   materiePrime = data;
+  ingredienteMateriaSelect.innerHTML = data.filter(m => m.attivo).map(m => `<option value="${m.id}">${m.nome}</option>`).join('');
 }
 
-async function caricaAllergeni() {
-  const { data, error } = await supabaseClient.from('allergeni').select('id, nome').order('nome');
-  if (error) {
-    errorMessage.textContent = 'Errore caricamento allergeni: ' + error.message;
-    return;
+async function caricaAllergeniPerMateria() {
+  const { data, error } = await supabaseClient
+    .from('materie_prime_allergeni')
+    .select('materia_prima_id, allergeni(nome)');
+  if (error) { errorMessage.textContent = 'Errore allergeni: ' + error.message; return; }
+  allergeniPerMateria = {};
+  for (const riga of data) {
+    if (!allergeniPerMateria[riga.materia_prima_id]) allergeniPerMateria[riga.materia_prima_id] = [];
+    allergeniPerMateria[riga.materia_prima_id].push(riga.allergeni.nome);
   }
-  allergeni = data;
 }
 
 function nomeUnita(id) {
@@ -77,15 +83,67 @@ function nomeMateriaPrima(id) {
   return m ? m.nome : '—';
 }
 
-function nomeAllergene(id) {
-  const a = allergeni.find(x => x.id === id);
-  return a ? a.nome : '—';
+// ---- Ingredienti nel form ----
+
+function renderIngredienti() {
+  ingredientiTbody.innerHTML = '';
+  ingredientiRighe.forEach((riga, indice) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${nomeMateriaPrima(riga.materiaPrimaId)}</td>
+      <td>${riga.quantita}</td>
+      <td>${nomeUnita(riga.unitaMisuraId)}</td>
+    `;
+    const tdActions = document.createElement('td');
+    tdActions.className = 'actions';
+    const delBtn = document.createElement('button');
+    delBtn.type = 'button';
+    delBtn.className = 'btn-danger';
+    delBtn.textContent = 'Rimuovi';
+    delBtn.addEventListener('click', () => {
+      ingredientiRighe.splice(indice, 1);
+      renderIngredienti();
+    });
+    tdActions.appendChild(delBtn);
+    tr.appendChild(tdActions);
+    ingredientiTbody.appendChild(tr);
+  });
+
+  const nomiAllergeni = new Set();
+  ingredientiRighe.forEach(riga => {
+    (allergeniPerMateria[riga.materiaPrimaId] || []).forEach(nome => nomiAllergeni.add(nome));
+  });
+  allergeniAnteprima.textContent = `Allergeni (calcolati dagli ingredienti): ${nomiAllergeni.size ? [...nomiAllergeni].join(', ') : 'nessuno'}`;
 }
+
+document.getElementById('aggiungi-ingrediente-btn').addEventListener('click', () => {
+  const materiaPrimaId = Number(ingredienteMateriaSelect.value);
+  const quantita = Number(ingredienteQuantitaInput.value);
+
+  if (!materiaPrimaId) {
+    alert('Seleziona una materia prima.');
+    return;
+  }
+  if (!quantita || quantita <= 0) {
+    alert('Inserisci una quantità maggiore di zero.');
+    return;
+  }
+  if (ingredientiRighe.some(r => r.materiaPrimaId === materiaPrimaId)) {
+    alert('Questa materia prima è già negli ingredienti.');
+    return;
+  }
+
+  ingredientiRighe.push({ materiaPrimaId, unitaMisuraId: Number(ingredienteUnitaSelect.value), quantita });
+  renderIngredienti();
+  ingredienteQuantitaInput.value = '';
+});
+
+// ---- Elenco prodotti ----
 
 async function caricaProdotti() {
   let query = supabaseClient
     .from('prodotti_finiti')
-    .select('id, nome, unita_misura_base_id, giorni_preavviso_scadenza, note, attivo')
+    .select('id, codice, nome, unita_misura_base_id, giorni_preavviso_scadenza, resa_quantita, resa_unita_misura_id, note, attivo')
     .order('nome');
   if (!mostraDisattivatiCheck.checked) {
     query = query.eq('attivo', true);
@@ -97,6 +155,19 @@ async function caricaProdotti() {
     return;
   }
 
+  const idProdotti = data.map(p => p.id);
+  let allergeniPerProdotto = {};
+  if (idProdotti.length > 0) {
+    const { data: allergeniData } = await supabaseClient
+      .from('v_prodotti_finiti_allergeni')
+      .select('prodotto_finito_id, allergeni(nome)')
+      .in('prodotto_finito_id', idProdotti);
+    for (const riga of (allergeniData || [])) {
+      if (!allergeniPerProdotto[riga.prodotto_finito_id]) allergeniPerProdotto[riga.prodotto_finito_id] = [];
+      allergeniPerProdotto[riga.prodotto_finito_id].push(riga.allergeni.nome);
+    }
+  }
+
   tbody.innerHTML = '';
   emptyState.hidden = data.length > 0;
 
@@ -104,31 +175,16 @@ async function caricaProdotti() {
     const tr = document.createElement('tr');
     if (!prodotto.attivo) tr.style.opacity = '0.55';
 
-    const tdNome = document.createElement('td');
-    tdNome.textContent = prodotto.nome;
-    tr.appendChild(tdNome);
-
-    const tdUnita = document.createElement('td');
-    tdUnita.textContent = nomeUnita(prodotto.unita_misura_base_id);
-    tr.appendChild(tdUnita);
-
-    const tdPreavviso = document.createElement('td');
-    tdPreavviso.textContent = prodotto.giorni_preavviso_scadenza;
-    tr.appendChild(tdPreavviso);
-
-    const tdStato = document.createElement('td');
-    tdStato.textContent = prodotto.attivo ? 'Attivo' : 'Disattivato';
-    tr.appendChild(tdStato);
+    tr.innerHTML = `
+      <td>${prodotto.codice || '—'}</td>
+      <td>${prodotto.nome}</td>
+      <td>${nomeUnita(prodotto.unita_misura_base_id)}</td>
+      <td>${(allergeniPerProdotto[prodotto.id] || []).join(', ') || '—'}</td>
+      <td>${prodotto.attivo ? 'Attivo' : 'Disattivato'}</td>
+    `;
 
     const tdActions = document.createElement('td');
     tdActions.className = 'actions';
-
-    const ricettaBtn = document.createElement('button');
-    ricettaBtn.type = 'button';
-    ricettaBtn.className = 'btn-secondary';
-    ricettaBtn.textContent = 'Ricetta';
-    ricettaBtn.addEventListener('click', () => apriRicetta(prodotto));
-    tdActions.appendChild(ricettaBtn);
 
     if (utenteCorrente.ruolo === 'direttore') {
       const editBtn = document.createElement('button');
@@ -160,12 +216,27 @@ async function caricaProdotti() {
   }
 }
 
-function avviaModifica(prodotto) {
+async function avviaModifica(prodotto) {
   idInput.value = prodotto.id;
+  codiceInput.value = prodotto.codice || '';
   nomeInput.value = prodotto.nome;
   unitaBaseSelect.value = prodotto.unita_misura_base_id;
   giorniPreavvisoInput.value = prodotto.giorni_preavviso_scadenza;
+  resaQuantitaInput.value = prodotto.resa_quantita || '';
+  if (prodotto.resa_unita_misura_id) resaUnitaSelect.value = prodotto.resa_unita_misura_id;
   noteInput.value = prodotto.note || '';
+
+  const { data: ingredienti } = await supabaseClient
+    .from('ricette_ingredienti')
+    .select('materia_prima_id, quantita, unita_misura_id')
+    .eq('prodotto_finito_id', prodotto.id);
+
+  ingredientiRighe = (ingredienti || []).map(i => ({
+    materiaPrimaId: i.materia_prima_id,
+    unitaMisuraId: i.unita_misura_id,
+    quantita: i.quantita,
+  }));
+  renderIngredienti();
 
   formTitle.textContent = 'Modifica prodotto finito';
   submitBtn.textContent = 'Salva modifiche';
@@ -176,6 +247,8 @@ function avviaModifica(prodotto) {
 function annullaModifica() {
   form.reset();
   idInput.value = '';
+  ingredientiRighe = [];
+  renderIngredienti();
   formTitle.textContent = 'Nuovo prodotto finito';
   submitBtn.textContent = 'Salva';
   cancelBtn.hidden = true;
@@ -189,7 +262,7 @@ async function eliminaProdotto(prodotto) {
 
   if (error) {
     if (error.code === '23503') {
-      if (confirm(`Non puoi eliminare "${prodotto.nome}" perché è già collegato ad altri dati (ricette, ordini, lotti...). Vuoi disattivarlo invece? Non comparirà più tra le scelte disponibili, ma la sua storia resterà intatta.`)) {
+      if (confirm(`Non puoi eliminare "${prodotto.nome}" perché è già collegato ad altri dati (ordini, lotti...). Vuoi disattivarlo invece? Non comparirà più tra le scelte disponibili, ma la sua storia resterà intatta.`)) {
         await impostaAttivo(prodotto, false);
       }
       return;
@@ -215,262 +288,65 @@ form.addEventListener('submit', async (event) => {
   errorMessage.textContent = '';
   submitBtn.disabled = true;
 
-  const valori = {
-    nome: nomeInput.value.trim(),
-    unita_misura_base_id: Number(unitaBaseSelect.value),
-    giorni_preavviso_scadenza: Number(giorniPreavvisoInput.value) || 0,
-    note: noteInput.value.trim() || null,
-  };
-
-  let result;
-  if (idInput.value) {
-    result = await supabaseClient.from('prodotti_finiti').update(valori).eq('id', idInput.value);
-  } else {
-    result = await supabaseClient.from('prodotti_finiti').insert(valori);
-  }
-
-  submitBtn.disabled = false;
-
-  if (result.error) {
-    errorMessage.textContent = 'Errore: ' + result.error.message;
+  const resaQuantita = resaQuantitaInput.value ? Number(resaQuantitaInput.value) : null;
+  if ((resaQuantita && !resaUnitaSelect.value)) {
+    errorMessage.textContent = 'Manca l\'unità della resa.';
+    submitBtn.disabled = false;
     return;
   }
 
+  const valori = {
+    codice: codiceInput.value.trim() || null,
+    nome: nomeInput.value.trim(),
+    unita_misura_base_id: Number(unitaBaseSelect.value),
+    giorni_preavviso_scadenza: Number(giorniPreavvisoInput.value) || 0,
+    resa_quantita: resaQuantita,
+    resa_unita_misura_id: resaQuantita ? Number(resaUnitaSelect.value) : null,
+    note: noteInput.value.trim() || null,
+  };
+
+  let prodottoId = idInput.value ? Number(idInput.value) : null;
+
+  if (prodottoId) {
+    const { error } = await supabaseClient.from('prodotti_finiti').update(valori).eq('id', prodottoId);
+    if (error) {
+      errorMessage.textContent = 'Errore: ' + error.message;
+      submitBtn.disabled = false;
+      return;
+    }
+    await supabaseClient.from('ricette_ingredienti').delete().eq('prodotto_finito_id', prodottoId);
+  } else {
+    const { data, error } = await supabaseClient.from('prodotti_finiti').insert(valori).select('id').single();
+    if (error) {
+      errorMessage.textContent = 'Errore: ' + error.message;
+      submitBtn.disabled = false;
+      return;
+    }
+    prodottoId = data.id;
+  }
+
+  if (ingredientiRighe.length > 0) {
+    const righe = ingredientiRighe.map(r => ({
+      prodotto_finito_id: prodottoId,
+      materia_prima_id: r.materiaPrimaId,
+      quantita: r.quantita,
+      unita_misura_id: r.unitaMisuraId,
+    }));
+    const { error: errIngredienti } = await supabaseClient.from('ricette_ingredienti').insert(righe);
+    if (errIngredienti) {
+      errorMessage.textContent = 'Prodotto salvato, ma errore negli ingredienti: ' + errIngredienti.message;
+      submitBtn.disabled = false;
+      await caricaProdotti();
+      return;
+    }
+  }
+
+  submitBtn.disabled = false;
   annullaModifica();
   await caricaProdotti();
 });
 
 cancelBtn.addEventListener('click', annullaModifica);
-
-// ---- Ricetta ----
-
-async function apriRicetta(prodotto) {
-  prodottoInModifica = prodotto;
-  ricettaTitle.textContent = `Ricetta — ${prodotto.nome}`;
-  ricettaPanel.hidden = false;
-  await renderRicetta();
-  ricettaPanel.scrollIntoView({ behavior: 'smooth' });
-}
-
-async function ricettaAttiva(prodottoFinitoId) {
-  const { data } = await supabaseClient
-    .from('ricette')
-    .select('id, versione, resa_quantita, resa_unita_misura_id')
-    .eq('prodotto_finito_id', prodottoFinitoId)
-    .is('valido_a', null)
-    .maybeSingle();
-  return data;
-}
-
-async function ricettaUsataInProduzione(ricettaId) {
-  const { count } = await supabaseClient
-    .from('ordini_produzione')
-    .select('id', { count: 'exact', head: true })
-    .eq('ricetta_id', ricettaId);
-  return (count || 0) > 0;
-}
-
-async function allergeniProdotto(prodottoFinitoId) {
-  const { data, error } = await supabaseClient
-    .from('v_prodotti_finiti_allergeni')
-    .select('allergene_id')
-    .eq('prodotto_finito_id', prodottoFinitoId);
-  if (error || !data) return [];
-  return data.map(r => nomeAllergene(r.allergene_id));
-}
-
-async function renderRicetta() {
-  const ricetta = await ricettaAttiva(prodottoInModifica.id);
-  const puoModificare = utenteCorrente.ruolo === 'direttore';
-
-  if (!ricetta) {
-    ricettaContent.innerHTML = puoModificare ? `
-      <p class="empty-state">Nessuna ricetta impostata per questo prodotto.</p>
-      <div class="form-row">
-        <div>
-          <label for="nuova-resa-quantita">Resa (quanto produce 1 batch/infornata)</label>
-          <input type="number" id="nuova-resa-quantita" min="0" step="any">
-        </div>
-        <div>
-          <label for="nuova-resa-unita">Unità</label>
-          <select id="nuova-resa-unita">${unitaMisura.map(u => `<option value="${u.id}">${u.nome} (${u.codice})</option>`).join('')}</select>
-        </div>
-      </div>
-      <button type="button" id="crea-ricetta-btn">Crea prima versione della ricetta</button>
-    ` : `<p class="empty-state">Nessuna ricetta impostata per questo prodotto.</p>`;
-    if (puoModificare) {
-      document.getElementById('crea-ricetta-btn').addEventListener('click', creaPrimaRicetta);
-    }
-    return;
-  }
-
-  const bloccata = await ricettaUsataInProduzione(ricetta.id);
-  const ingredienti = await caricaIngredienti(ricetta.id);
-  const nomiAllergeni = await allergeniProdotto(prodottoInModifica.id);
-
-  let html = `
-    <p><strong>Versione ${ricetta.versione}</strong> — resa: ${ricetta.resa_quantita} ${nomeUnita(ricetta.resa_unita_misura_id)} per batch</p>
-    <p class="empty-state">Allergeni (calcolati dagli ingredienti): ${nomiAllergeni.length ? nomiAllergeni.join(', ') : 'nessuno'}</p>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Materia prima</th><th>Quantità per batch</th><th>Unità</th><th></th></tr></thead>
-        <tbody id="ingredienti-tbody"></tbody>
-      </table>
-    </div>
-  `;
-
-  if (bloccata && puoModificare) {
-    html += `
-      <p class="empty-state">Questa versione è già stata usata in un ordine di produzione: non è più modificabile.</p>
-      <button type="button" id="nuova-versione-btn">Crea nuova versione della ricetta</button>
-    `;
-  } else if (!bloccata && puoModificare) {
-    html += `
-      <div class="form-row" style="margin-top:16px;">
-        <div>
-          <label for="ingrediente-materia">Materia prima</label>
-          <select id="ingrediente-materia">${materiePrime.filter(m => m.attivo).map(m => `<option value="${m.id}">${m.nome}</option>`).join('')}</select>
-        </div>
-        <div>
-          <label for="ingrediente-unita">Unità</label>
-          <select id="ingrediente-unita">${unitaMisura.map(u => `<option value="${u.id}">${u.nome} (${u.codice})</option>`).join('')}</select>
-        </div>
-      </div>
-      <label for="ingrediente-quantita">Quantità per batch</label>
-      <input type="number" id="ingrediente-quantita" min="0" step="any">
-      <button type="button" id="aggiungi-ingrediente-btn">Aggiungi ingrediente</button>
-    `;
-  }
-
-  ricettaContent.innerHTML = html;
-
-  const ingredientiTbody = document.getElementById('ingredienti-tbody');
-  for (const ing of ingredienti) {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${nomeMateriaPrima(ing.materia_prima_id)}</td><td>${ing.quantita}</td><td>${nomeUnita(ing.unita_misura_id)}</td>`;
-    if (!bloccata && utenteCorrente.ruolo === 'direttore') {
-      const tdActions = document.createElement('td');
-      tdActions.className = 'actions';
-      const delBtn = document.createElement('button');
-      delBtn.type = 'button';
-      delBtn.className = 'btn-danger';
-      delBtn.textContent = 'Elimina';
-      delBtn.addEventListener('click', async () => {
-        await supabaseClient.from('ricette_ingredienti').delete().eq('id', ing.id);
-        await renderRicetta();
-      });
-      tdActions.appendChild(delBtn);
-      tr.appendChild(tdActions);
-    } else {
-      tr.appendChild(document.createElement('td'));
-    }
-    ingredientiTbody.appendChild(tr);
-  }
-
-  if (!bloccata && puoModificare) {
-    document.getElementById('aggiungi-ingrediente-btn').addEventListener('click', async () => {
-      const quantita = Number(document.getElementById('ingrediente-quantita').value);
-      if (!quantita || quantita <= 0) {
-        alert('Inserisci una quantità maggiore di zero.');
-        return;
-      }
-      const { error } = await supabaseClient.from('ricette_ingredienti').insert({
-        ricetta_id: ricetta.id,
-        materia_prima_id: Number(document.getElementById('ingrediente-materia').value),
-        quantita,
-        unita_misura_id: Number(document.getElementById('ingrediente-unita').value),
-      });
-      if (error) {
-        alert('Errore: ' + error.message);
-        return;
-      }
-      await renderRicetta();
-    });
-  } else if (bloccata && puoModificare) {
-    document.getElementById('nuova-versione-btn').addEventListener('click', () => creaNuovaVersione(ricetta, ingredienti));
-  }
-}
-
-async function caricaIngredienti(ricettaId) {
-  const { data, error } = await supabaseClient
-    .from('ricette_ingredienti')
-    .select('id, materia_prima_id, quantita, unita_misura_id')
-    .eq('ricetta_id', ricettaId)
-    .order('id');
-  if (error) return [];
-  return data;
-}
-
-async function creaPrimaRicetta() {
-  const resaQuantita = Number(document.getElementById('nuova-resa-quantita').value);
-  if (!resaQuantita || resaQuantita <= 0) {
-    alert('Inserisci una resa maggiore di zero.');
-    return;
-  }
-  const resaUnitaId = Number(document.getElementById('nuova-resa-unita').value);
-
-  const { error } = await supabaseClient.from('ricette').insert({
-    prodotto_finito_id: prodottoInModifica.id,
-    versione: 1,
-    resa_quantita: resaQuantita,
-    resa_unita_misura_id: resaUnitaId,
-  });
-
-  if (error) {
-    alert('Errore: ' + error.message);
-    return;
-  }
-
-  await renderRicetta();
-}
-
-async function creaNuovaVersione(vecchiaRicetta, vecchiIngredienti) {
-  if (!confirm('Creare una nuova versione della ricetta? La versione precedente resterà collegata ai lotti già prodotti.')) return;
-
-  const { error: errChiusura } = await supabaseClient
-    .from('ricette')
-    .update({ valido_a: new Date().toISOString().slice(0, 10) })
-    .eq('id', vecchiaRicetta.id);
-
-  if (errChiusura) {
-    alert('Errore: ' + errChiusura.message);
-    return;
-  }
-
-  const { data: nuovaRicetta, error: errCreazione } = await supabaseClient
-    .from('ricette')
-    .insert({
-      prodotto_finito_id: prodottoInModifica.id,
-      versione: vecchiaRicetta.versione + 1,
-      resa_quantita: vecchiaRicetta.resa_quantita,
-      resa_unita_misura_id: vecchiaRicetta.resa_unita_misura_id,
-    })
-    .select('id')
-    .single();
-
-  if (errCreazione) {
-    alert('Errore: ' + errCreazione.message);
-    return;
-  }
-
-  if (vecchiIngredienti.length > 0) {
-    const righe = vecchiIngredienti.map(ing => ({
-      ricetta_id: nuovaRicetta.id,
-      materia_prima_id: ing.materia_prima_id,
-      quantita: ing.quantita,
-      unita_misura_id: ing.unita_misura_id,
-    }));
-    await supabaseClient.from('ricette_ingredienti').insert(righe);
-  }
-
-  await renderRicetta();
-}
-
-document.getElementById('chiudi-ricetta-btn').addEventListener('click', () => {
-  ricettaPanel.hidden = true;
-  prodottoInModifica = null;
-});
-
 mostraDisattivatiCheck.addEventListener('change', caricaProdotti);
 
 init();

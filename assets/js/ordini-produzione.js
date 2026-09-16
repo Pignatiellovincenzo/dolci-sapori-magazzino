@@ -73,23 +73,23 @@ function convertiInUnitaMagazzino(materiaPrimaId, quantita, unitaMisuraId) {
 
 async function caricaProdottiConRicetta() {
   const { data, error } = await supabaseClient
-    .from('ricette')
-    .select('id, resa_quantita, resa_unita_misura_id, prodotti_finiti(id, nome)')
-    .is('valido_a', null);
+    .from('ricette_ingredienti')
+    .select('prodotto_finito_id, prodotti_finiti(id, nome, attivo)');
 
   if (error) { errorMessage.textContent = 'Errore ricette: ' + error.message; return; }
 
-  prodottiConRicetta = data.map(r => ({
-    ricettaId: r.id,
-    resaQuantita: r.resa_quantita,
-    resaUnitaMisuraId: r.resa_unita_misura_id,
-    prodottoFinitoId: r.prodotti_finiti.id,
-    nomeProdotto: r.prodotti_finiti.nome,
-  }));
+  const visti = new Set();
+  prodottiConRicetta = [];
+  for (const r of data) {
+    if (visti.has(r.prodotto_finito_id) || !r.prodotti_finiti.attivo) continue;
+    visti.add(r.prodotto_finito_id);
+    prodottiConRicetta.push({ prodottoFinitoId: r.prodotti_finiti.id, nomeProdotto: r.prodotti_finiti.nome });
+  }
+  prodottiConRicetta.sort((a, b) => a.nomeProdotto.localeCompare(b.nomeProdotto));
 
   prodottoSelect.innerHTML = prodottiConRicetta
-    .map(p => `<option value="${p.ricettaId}">${p.nomeProdotto}</option>`)
-    .join('') || '<option value="">Nessun prodotto con ricetta attiva</option>';
+    .map(p => `<option value="${p.prodottoFinitoId}">${p.nomeProdotto}</option>`)
+    .join('') || '<option value="">Nessun prodotto con ricetta definita</option>';
 }
 
 function nomeUnita(id) {
@@ -106,7 +106,7 @@ function nomeMateriaPrima(id) {
 async function caricaOrdini() {
   const { data, error } = await supabaseClient
     .from('ordini_produzione')
-    .select('id, quantita_richiesta, unita_misura_id, stato, creato_il, ricetta_id, prodotti_finiti(nome)')
+    .select('id, prodotto_finito_id, quantita_richiesta, unita_misura_id, stato, creato_il, prodotti_finiti(nome)')
     .order('creato_il', { ascending: false });
 
   if (error) { errorMessage.textContent = 'Errore caricamento ordini: ' + error.message; return; }
@@ -138,12 +138,12 @@ async function caricaOrdini() {
 document.getElementById('crea-ordine-btn').addEventListener('click', async () => {
   errorMessage.textContent = '';
 
-  const ricettaId = Number(prodottoSelect.value);
-  const prodotto = prodottiConRicetta.find(p => p.ricettaId === ricettaId);
+  const prodottoFinitoId = Number(prodottoSelect.value);
+  const prodotto = prodottiConRicetta.find(p => p.prodottoFinitoId === prodottoFinitoId);
   const quantita = Number(quantitaInput.value);
 
   if (!prodotto) {
-    errorMessage.textContent = 'Nessun prodotto selezionabile: crea prima una ricetta attiva per almeno un prodotto finito.';
+    errorMessage.textContent = 'Nessun prodotto selezionabile: definisci prima una ricetta per almeno un prodotto finito.';
     return;
   }
   if (!quantita || quantita <= 0) {
@@ -153,7 +153,6 @@ document.getElementById('crea-ordine-btn').addEventListener('click', async () =>
 
   const { error } = await supabaseClient.from('ordini_produzione').insert({
     prodotto_finito_id: prodotto.prodottoFinitoId,
-    ricetta_id: prodotto.ricettaId,
     quantita_richiesta: quantita,
     unita_misura_id: Number(unitaSelect.value),
     creato_da: utenteCorrente.id,
@@ -186,17 +185,17 @@ async function apriPrelievo(ordine) {
   prelievoPanel.scrollIntoView({ behavior: 'smooth' });
 }
 
-async function caricaIngredientiRicetta(ricettaId) {
+async function caricaIngredientiRicetta(prodottoFinitoId) {
   const { data, error } = await supabaseClient
     .from('ricette_ingredienti')
     .select('materia_prima_id, quantita, unita_misura_id')
-    .eq('ricetta_id', ricettaId);
+    .eq('prodotto_finito_id', prodottoFinitoId);
   if (error) return [];
   return data;
 }
 
 async function renderFormBatch() {
-  const ingredienti = await caricaIngredientiRicetta(ordineInGestione.ricetta_id);
+  const ingredienti = await caricaIngredientiRicetta(ordineInGestione.prodotto_finito_id);
 
   prelievoContent.innerHTML = `
     <div class="table-wrap">

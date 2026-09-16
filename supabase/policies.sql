@@ -90,12 +90,6 @@ create policy "scrittura_direttore" on prodotti_finiti_conversioni for insert wi
 create policy "modifica_direttore" on prodotti_finiti_conversioni for update using (ruolo_utente() = 'direttore');
 create policy "eliminazione_direttore" on prodotti_finiti_conversioni for delete using (ruolo_utente() = 'direttore');
 
-alter table ricette enable row level security;
-create policy "lettura_autenticati" on ricette for select using (auth.role() = 'authenticated');
-create policy "scrittura_direttore" on ricette for insert with check (ruolo_utente() = 'direttore');
-create policy "modifica_direttore" on ricette for update using (ruolo_utente() = 'direttore');
-create policy "eliminazione_direttore" on ricette for delete using (ruolo_utente() = 'direttore');
-
 alter table ricette_ingredienti enable row level security;
 create policy "lettura_autenticati" on ricette_ingredienti for select using (auth.role() = 'authenticated');
 create policy "scrittura_direttore" on ricette_ingredienti for insert with check (ruolo_utente() = 'direttore');

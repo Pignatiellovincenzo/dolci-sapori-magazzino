@@ -26,23 +26,69 @@
         <input type="hidden" id="prodotto-id">
         <div class="form-row">
           <div>
-            <label for="nome">Nome *</label>
-            <input type="text" id="nome" required>
+            <label for="codice">Codice prodotto</label>
+            <input type="text" id="codice">
           </div>
           <div>
-            <label for="unita-base">Unità di misura base *</label>
-            <select id="unita-base" required></select>
+            <label for="nome">Nome *</label>
+            <input type="text" id="nome" required>
           </div>
         </div>
         <div class="form-row">
           <div>
+            <label for="unita-base">Unità di misura base *</label>
+            <select id="unita-base" required></select>
+          </div>
+          <div>
             <label for="giorni-preavviso">Giorni di preavviso scadenza</label>
             <input type="number" id="giorni-preavviso" min="0" value="0">
           </div>
+        </div>
+
+        <label>Ricetta — resa per 1 batch/infornata</label>
+        <div class="form-row">
+          <div>
+            <label for="resa-quantita">Quantità prodotta per batch</label>
+            <input type="number" id="resa-quantita" min="0" step="any">
+          </div>
+          <div>
+            <label for="resa-unita">Unità</label>
+            <select id="resa-unita"></select>
+          </div>
+        </div>
+
+        <label>Ingredienti (per 1 batch)</label>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Materia prima</th><th>Quantità</th><th>Unità</th><th></th></tr></thead>
+            <tbody id="ingredienti-tbody"></tbody>
+          </table>
+        </div>
+        <div class="form-row">
+          <div>
+            <label for="ingrediente-materia">Materia prima</label>
+            <select id="ingrediente-materia"></select>
+          </div>
+          <div>
+            <label for="ingrediente-unita">Unità</label>
+            <select id="ingrediente-unita"></select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div>
+            <label for="ingrediente-quantita">Quantità per batch</label>
+            <input type="number" id="ingrediente-quantita" min="0" step="any">
+          </div>
           <div></div>
         </div>
-        <label for="note">Note</label>
-        <textarea id="note" rows="2"></textarea>
+        <button type="button" id="aggiungi-ingrediente-btn">Aggiungi ingrediente</button>
+        <p class="empty-state" id="allergeni-anteprima">Allergeni (calcolati dagli ingredienti): —</p>
+
+        <details>
+          <summary>Note</summary>
+          <textarea id="note" rows="2"></textarea>
+        </details>
+
         <p class="error" id="error-message"></p>
         <div class="btn-row">
           <button type="submit" id="submit-btn">Salva</button>
@@ -59,19 +105,11 @@
       </label>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Nome</th><th>Unità base</th><th>Preavviso scad.</th><th>Stato</th><th></th></tr></thead>
+          <thead><tr><th>Codice</th><th>Nome</th><th>Unità base</th><th>Allergeni</th><th>Stato</th><th></th></tr></thead>
           <tbody id="prodotti-tbody"></tbody>
         </table>
       </div>
       <p class="empty-state" id="empty-state" hidden>Nessun prodotto finito inserito.</p>
-    </section>
-
-    <section class="panel" id="ricetta-panel" hidden>
-      <h2 id="ricetta-title">Ricetta</h2>
-      <div id="ricetta-content"></div>
-      <div class="btn-row" style="margin-top:16px;">
-        <button type="button" class="btn-secondary" id="chiudi-ricetta-btn">Chiudi</button>
-      </div>
     </section>
   </main>
 

@@ -1,8 +1,9 @@
 -- Schema — Gestionale Magazzino Dolci & Sapori (v2)
 -- Sostituisce integralmente la v1: giacenza calcolata da un registro
--- movimenti append-only (mai UPDATE/DELETE), stato del lotto, ricette
--- versionate, allergeni per esplosione da distinta base, chiavi intere
--- (tranne "utenti", legata a Supabase Auth).
+-- movimenti append-only (mai UPDATE/DELETE), stato del lotto, allergeni per
+-- esplosione da distinta base, chiavi intere (tranne "utenti", legata a
+-- Supabase Auth). La ricetta e' fissa e unica per prodotto: la tracciabilita'
+-- storica dei lotti passa dal registro movimenti, non dalla ricetta.
 --
 -- Da eseguire nell'SQL Editor di Supabase su un progetto vuoto (o dopo
 -- aver eseguito reset.sql per ripulire la v1).
@@ -78,13 +79,23 @@ create table materie_prime (
 -- =========================================================================
 -- PRODOTTI FINITI
 -- =========================================================================
+-- Ricetta fissa e unica per prodotto (resa + ingredienti sotto): non e'
+-- versionata. La tracciabilita' storica di un lotto gia' prodotto non passa
+-- dalla ricetta ma dai movimenti materie prime realmente registrati per
+-- l'ordine di produzione che lo ha generato (vedi
+-- v_lotti_prodotti_finiti_allergeni in fondo al file) — quindi modificare la
+-- ricetta oggi non altera la tracciabilita' di quanto gia' prodotto.
 create table prodotti_finiti (
   id integer generated always as identity primary key,
+  codice text,
   nome text not null,
   unita_misura_base_id integer not null references unita_misura (id),
+  resa_quantita numeric check (resa_quantita > 0), -- quanto prodotto finito produce 1 batch della ricetta
+  resa_unita_misura_id integer references unita_misura (id),
   giorni_preavviso_scadenza integer not null default 0,
   note text,
-  attivo boolean not null default true
+  attivo boolean not null default true,
+  check ((resa_quantita is null) = (resa_unita_misura_id is null))
 );
 
 create table prodotti_finiti_conversioni (
@@ -113,31 +124,16 @@ create table materie_prime_allergeni (
 );
 
 -- =========================================================================
--- RICETTE — versionate: una nuova versione non riscrive la storia dei lotti
--- gia' prodotti con la versione precedente.
+-- RICETTA — ingredienti del prodotto (una sola ricetta per prodotto, vedi
+-- commento su prodotti_finiti).
 -- =========================================================================
-create table ricette (
-  id integer generated always as identity primary key,
-  prodotto_finito_id integer not null references prodotti_finiti (id),
-  versione integer not null,
-  resa_quantita numeric not null check (resa_quantita > 0), -- quanto prodotto finito produce 1 batch
-  resa_unita_misura_id integer not null references unita_misura (id),
-  valido_da date not null default current_date,
-  valido_a date, -- null = versione attualmente in uso
-  note text,
-  unique (prodotto_finito_id, versione)
-);
-
--- Al massimo una versione "attiva" (valido_a is null) per prodotto.
-create unique index ricette_una_attiva_per_prodotto on ricette (prodotto_finito_id) where valido_a is null;
-
 create table ricette_ingredienti (
   id integer generated always as identity primary key,
-  ricetta_id integer not null references ricette (id) on delete cascade,
+  prodotto_finito_id integer not null references prodotti_finiti (id) on delete cascade,
   materia_prima_id integer not null references materie_prime (id),
   quantita numeric not null check (quantita > 0), -- quantita per 1 batch
   unita_misura_id integer not null references unita_misura (id),
-  unique (ricetta_id, materia_prima_id)
+  unique (prodotto_finito_id, materia_prima_id)
 );
 
 -- =========================================================================
@@ -149,7 +145,6 @@ create table ricette_ingredienti (
 create table ordini_produzione (
   id bigint generated always as identity primary key,
   prodotto_finito_id integer not null references prodotti_finiti (id),
-  ricetta_id integer not null references ricette (id), -- versione della ricetta attiva al momento dell'ordine
   quantita_richiesta numeric not null check (quantita_richiesta > 0),
   unita_misura_id integer not null references unita_misura (id),
   stato text not null default 'assegnato'
@@ -335,10 +330,8 @@ for each row execute function imposta_segno_movimento_prodotti_finiti();
 -- =========================================================================
 create index on lotti_materie_prime (materia_prima_id);
 create index on lotti_materie_prime (fornitore_id);
-create index on ricette (prodotto_finito_id);
 create index on ricette_ingredienti (materia_prima_id);
 create index on ordini_produzione (prodotto_finito_id);
-create index on ordini_produzione (ricetta_id);
 create index on ordini_produzione (creato_da);
 create index on movimenti_materie_prime (lotto_id, data_movimento);
 create index on movimenti_materie_prime (causale_id);
@@ -373,22 +366,25 @@ from movimenti_prodotti_finiti
 group by lotto_id
 having sum(quantita * segno) <> 0;
 
--- Allergeni correnti per prodotto (ricetta attualmente in uso).
+-- Allergeni della ricetta attuale (anteprima per un prodotto non ancora
+-- prodotto, o in generale "cosa contiene oggi questo prodotto").
 create view v_prodotti_finiti_allergeni as
-select distinct r.prodotto_finito_id, mpa.allergene_id
-from ricette r
-join ricette_ingredienti ri on ri.ricetta_id = r.id
-join materie_prime_allergeni mpa on mpa.materia_prima_id = ri.materia_prima_id
-where r.valido_a is null;
+select distinct ri.prodotto_finito_id, mpa.allergene_id
+from ricette_ingredienti ri
+join materie_prime_allergeni mpa on mpa.materia_prima_id = ri.materia_prima_id;
 
--- Allergeni storici per uno specifico lotto di prodotto finito, in base alla
--- versione di ricetta usata realmente per produrlo (non quella attuale).
+-- Allergeni storici REALI di uno specifico lotto di prodotto finito: non
+-- derivano dalla ricetta (che puo' essere cambiata nel frattempo), ma dai
+-- movimenti di materie prime effettivamente registrati per l'ordine di
+-- produzione che ha generato quel lotto. Questo e' cio' che rende sicura la
+-- ricetta non versionata: la tracciabilita' vera vive nel registro
+-- movimenti, immutabile per costruzione.
 create view v_lotti_prodotti_finiti_allergeni as
 select distinct lpf.id as lotto_prodotto_finito_id, mpa.allergene_id
 from lotti_prodotti_finiti lpf
-join ordini_produzione op on op.id = lpf.ordine_produzione_id
-join ricette_ingredienti ri on ri.ricetta_id = op.ricetta_id
-join materie_prime_allergeni mpa on mpa.materia_prima_id = ri.materia_prima_id;
+join movimenti_materie_prime mmp on mmp.ordine_produzione_id = lpf.ordine_produzione_id
+join lotti_materie_prime lmp on lmp.id = mmp.lotto_id
+join materie_prime_allergeni mpa on mpa.materia_prima_id = lmp.materia_prima_id;
 
 -- =========================================================================
 -- OPERAZIONI ATOMICHE — piu' tabelle insieme in una sola transazione, cosi'
