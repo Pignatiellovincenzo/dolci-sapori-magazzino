@@ -22,18 +22,25 @@
 
     <section class="panel" id="form-panel">
       <h2>Nuovo ordine di produzione</h2>
+      <p class="empty-state" style="margin-top:-8px;">Un ordine può includere più prodotti (più linee di produzione lo stesso giorno).</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Prodotto</th><th>Numero batch</th><th></th></tr></thead>
+          <tbody id="righe-nuovo-ordine-tbody"></tbody>
+        </table>
+      </div>
       <div class="form-row">
         <div>
-          <label for="prodotto-select">Prodotto (solo prodotti con una ricetta attiva)</label>
-          <select id="prodotto-select"></select>
+          <label for="nuova-riga-prodotto">Prodotto (solo prodotti con una ricetta)</label>
+          <select id="nuova-riga-prodotto"></select>
         </div>
         <div>
-          <label for="unita-select">Unità</label>
-          <select id="unita-select"></select>
+          <label for="nuova-riga-batch">Numero batch</label>
+          <input type="number" id="nuova-riga-batch" min="0" step="any">
         </div>
       </div>
-      <label for="quantita-input">Quantità richiesta</label>
-      <input type="number" id="quantita-input" min="0" step="any">
+      <button type="button" id="aggiungi-riga-nuovo-ordine-btn">Aggiungi prodotto all'ordine</button>
+
       <label for="note-input">Note</label>
       <textarea id="note-input" rows="2"></textarea>
       <p class="error" id="error-message"></p>
@@ -44,11 +51,19 @@
       <h2>Elenco ordini</h2>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Prodotto</th><th>Quantità richiesta</th><th>Stato</th><th>Creato il</th><th></th></tr></thead>
+          <thead><tr><th>Creato il</th><th>Prodotti</th><th>Note</th><th></th></tr></thead>
           <tbody id="ordini-tbody"></tbody>
         </table>
       </div>
       <p class="empty-state" id="empty-state" hidden>Nessun ordine di produzione.</p>
+    </section>
+
+    <section class="panel" id="gestione-panel" hidden>
+      <h2 id="gestione-title">Ordine</h2>
+      <div id="gestione-content"></div>
+      <div class="btn-row" style="margin-top:16px;">
+        <button type="button" class="btn-secondary" id="chiudi-gestione-btn">Chiudi</button>
+      </div>
     </section>
 
     <section class="panel" id="prelievo-panel" hidden>

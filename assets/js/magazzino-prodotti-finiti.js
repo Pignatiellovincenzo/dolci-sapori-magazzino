@@ -48,8 +48,8 @@ function prodottoDaId(id) {
 
 async function caricaOrdiniDaConfezionare() {
   const { data, error } = await supabaseClient
-    .from('ordini_produzione')
-    .select('id, quantita_richiesta, unita_misura_id, creato_il, prodotti_finiti(id, nome)')
+    .from('ordini_produzione_righe')
+    .select('id, numero_batch, creato_il, prodotti_finiti(id, nome)')
     .eq('stato', 'prelievo_confermato')
     .order('creato_il', { ascending: true });
 
@@ -58,28 +58,28 @@ async function caricaOrdiniDaConfezionare() {
   daConfezionareTbody.innerHTML = '';
   emptyDaConfezionare.hidden = data.length > 0;
 
-  for (const ordine of data) {
+  for (const riga of data) {
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${ordine.prodotti_finiti.nome}</td>
-      <td>${ordine.quantita_richiesta} ${nomeUnita(ordine.unita_misura_id)}</td>
-      <td>${new Date(ordine.creato_il).toLocaleDateString('it-IT')}</td>
+      <td>${riga.prodotti_finiti.nome}</td>
+      <td>${riga.numero_batch} batch</td>
+      <td>${new Date(riga.creato_il).toLocaleDateString('it-IT')}</td>
     `;
     const tdActions = document.createElement('td');
     tdActions.className = 'actions';
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.textContent = 'Registra confezionamento';
-    btn.addEventListener('click', () => apriConfezionamento(ordine));
+    btn.addEventListener('click', () => apriConfezionamento(riga));
     tdActions.appendChild(btn);
     tr.appendChild(tdActions);
     daConfezionareTbody.appendChild(tr);
   }
 }
 
-function apriConfezionamento(ordine) {
-  ordineInConfezionamento = ordine;
-  confezionaTitle.textContent = `Registra confezionamento — ${ordine.prodotti_finiti.nome}`;
+function apriConfezionamento(riga) {
+  ordineInConfezionamento = riga;
+  confezionaTitle.textContent = `Registra confezionamento — ${riga.prodotti_finiti.nome}`;
   numeroLottoInput.value = '';
   quantitaConfezionataInput.value = '';
   dataProduzioneInput.value = new Date().toISOString().slice(0, 10);
@@ -110,7 +110,7 @@ document.getElementById('salva-confezionamento-btn').addEventListener('click', a
   }
 
   const { error } = await supabaseClient.rpc('registra_confezionamento', {
-    p_ordine_produzione_id: ordineInConfezionamento.id,
+    p_ordine_produzione_riga_id: ordineInConfezionamento.id,
     p_numero_lotto: numeroLotto,
     p_quantita: quantita,
     p_data_produzione: dataProduzioneInput.value || new Date().toISOString().slice(0, 10),

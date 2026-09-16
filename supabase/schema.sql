@@ -137,21 +137,25 @@ create table ricette_ingredienti (
 );
 
 -- =========================================================================
--- FLUSSO PRODUZIONE
+-- FLUSSO PRODUZIONE — una testata puo' avere piu' righe (piu' linee di
+-- produzione lo stesso giorno, un prodotto per riga). Ogni riga ha il suo
+-- ciclo di vita indipendente: la testata e' solo un raggruppamento.
 -- =========================================================================
--- NB: unita_misura_id resta generico (kg, pezzi, batch...) perche' non e'
--- ancora stato deciso in che unita il direttore esprime la quantita
--- richiesta (vedi "Punti da Chiarire" su Drive).
 create table ordini_produzione (
   id bigint generated always as identity primary key,
-  prodotto_finito_id integer not null references prodotti_finiti (id),
-  quantita_richiesta numeric not null check (quantita_richiesta > 0),
-  unita_misura_id integer not null references unita_misura (id),
-  stato text not null default 'assegnato'
-    check (stato in ('assegnato', 'prelievo_confermato', 'completato', 'annullato')),
   creato_da uuid not null references utenti (id),
   creato_il timestamptz not null default now(),
   note text
+);
+
+create table ordini_produzione_righe (
+  id bigint generated always as identity primary key,
+  ordine_produzione_id bigint not null references ordini_produzione (id) on delete cascade,
+  prodotto_finito_id integer not null references prodotti_finiti (id),
+  numero_batch numeric not null check (numero_batch > 0), -- quantita' = numero di batch della ricetta
+  stato text not null default 'assegnato'
+    check (stato in ('assegnato', 'prelievo_confermato', 'completato', 'annullato')),
+  creato_il timestamptz not null default now()
 );
 
 -- =========================================================================
@@ -198,7 +202,7 @@ create table movimenti_materie_prime (
   quantita_originale numeric not null check (quantita_originale > 0), -- quantita' cosi' come inserita
   quantita numeric not null check (quantita > 0), -- calcolata dal trigger: quantita_originale nell'unita' magazzino
   segno smallint not null check (segno in (-1, 1)), -- impostato automaticamente da un trigger in base alla causale
-  ordine_produzione_id bigint references ordini_produzione (id), -- valorizzato solo per scarico_produzione
+  ordine_produzione_riga_id bigint references ordini_produzione_righe (id), -- valorizzato solo per scarico_produzione
   utente_id uuid not null references utenti (id),
   data_movimento timestamptz not null default now(),
   note text
@@ -250,7 +254,7 @@ for each row execute function imposta_segno_e_quantita_movimento_materie_prime()
 create table lotti_prodotti_finiti (
   id bigint generated always as identity primary key,
   prodotto_finito_id integer not null references prodotti_finiti (id),
-  ordine_produzione_id bigint not null references ordini_produzione (id),
+  ordine_produzione_riga_id bigint not null references ordini_produzione_righe (id),
   numero_lotto text not null, -- assegnato manualmente dal responsabile confezionamento
   data_produzione date not null default current_date,
   data_scadenza date,
@@ -303,12 +307,12 @@ create table movimenti_prodotti_finiti (
   causale_id integer not null references causali_prodotti_finiti (id),
   quantita numeric not null check (quantita > 0),
   segno smallint not null check (segno in (-1, 1)), -- impostato automaticamente da un trigger
-  ordine_produzione_id bigint references ordini_produzione (id), -- valorizzato solo per confezionamento
+  ordine_produzione_riga_id bigint references ordini_produzione_righe (id), -- valorizzato solo per confezionamento
   ordine_vendita_riga_id bigint references ordini_vendita_righe (id), -- valorizzato solo per scarico_vendita
   utente_id uuid not null references utenti (id),
   data_movimento timestamptz not null default now(),
   note text,
-  check (num_nonnulls(ordine_produzione_id, ordine_vendita_riga_id) <= 1)
+  check (num_nonnulls(ordine_produzione_riga_id, ordine_vendita_riga_id) <= 1)
 );
 
 create or replace function imposta_segno_movimento_prodotti_finiti()
@@ -331,23 +335,24 @@ for each row execute function imposta_segno_movimento_prodotti_finiti();
 create index on lotti_materie_prime (materia_prima_id);
 create index on lotti_materie_prime (fornitore_id);
 create index on ricette_ingredienti (materia_prima_id);
-create index on ordini_produzione (prodotto_finito_id);
 create index on ordini_produzione (creato_da);
+create index on ordini_produzione_righe (ordine_produzione_id);
+create index on ordini_produzione_righe (prodotto_finito_id);
 create index on movimenti_materie_prime (lotto_id, data_movimento);
 create index on movimenti_materie_prime (causale_id);
-create index on movimenti_materie_prime (ordine_produzione_id);
+create index on movimenti_materie_prime (ordine_produzione_riga_id);
 create index on movimenti_materie_prime (utente_id);
 create index on movimenti_materie_prime (unita_misura_id);
 create index on materie_prime (fornitore_id);
 create index on lotti_prodotti_finiti (prodotto_finito_id);
-create index on lotti_prodotti_finiti (ordine_produzione_id);
+create index on lotti_prodotti_finiti (ordine_produzione_riga_id);
 create index on ordini_vendita (cliente_id);
 create index on ordini_vendita (creato_da);
 create index on ordini_vendita_righe (ordine_vendita_id);
 create index on ordini_vendita_righe (prodotto_finito_id);
 create index on movimenti_prodotti_finiti (lotto_id, data_movimento);
 create index on movimenti_prodotti_finiti (causale_id);
-create index on movimenti_prodotti_finiti (ordine_produzione_id);
+create index on movimenti_prodotti_finiti (ordine_produzione_riga_id);
 create index on movimenti_prodotti_finiti (ordine_vendita_riga_id);
 create index on movimenti_prodotti_finiti (utente_id);
 
@@ -382,7 +387,7 @@ join materie_prime_allergeni mpa on mpa.materia_prima_id = ri.materia_prima_id;
 create view v_lotti_prodotti_finiti_allergeni as
 select distinct lpf.id as lotto_prodotto_finito_id, mpa.allergene_id
 from lotti_prodotti_finiti lpf
-join movimenti_materie_prime mmp on mmp.ordine_produzione_id = lpf.ordine_produzione_id
+join movimenti_materie_prime mmp on mmp.ordine_produzione_riga_id = lpf.ordine_produzione_riga_id
 join lotti_materie_prime lmp on lmp.id = mmp.lotto_id
 join materie_prime_allergeni mpa on mpa.materia_prima_id = lmp.materia_prima_id;
 
@@ -393,7 +398,7 @@ join materie_prime_allergeni mpa on mpa.materia_prima_id = lmp.materia_prima_id;
 -- chiama: le policy RLS restano valide.
 -- =========================================================================
 create or replace function registra_prelievo_produzione(
-  p_ordine_produzione_id bigint,
+  p_ordine_produzione_riga_id bigint,
   p_allocazioni jsonb -- array di oggetti {"lotto_id": ..., "quantita": ...}
 ) returns void
 language plpgsql
@@ -409,25 +414,25 @@ begin
   loop
     v_lotto_id := (v_riga ->> 'lotto_id')::bigint;
 
-    insert into movimenti_materie_prime (lotto_id, causale_id, unita_misura_id, quantita_originale, ordine_produzione_id, utente_id)
+    insert into movimenti_materie_prime (lotto_id, causale_id, unita_misura_id, quantita_originale, ordine_produzione_riga_id, utente_id)
     values (
       v_lotto_id,
       v_causale_id,
       (select mp.unita_magazzino_id from lotti_materie_prime l join materie_prime mp on mp.id = l.materia_prima_id where l.id = v_lotto_id),
       (v_riga ->> 'quantita')::numeric,
-      p_ordine_produzione_id,
+      p_ordine_produzione_riga_id,
       auth.uid()
     );
   end loop;
 
-  update ordini_produzione set stato = 'prelievo_confermato' where id = p_ordine_produzione_id;
+  update ordini_produzione_righe set stato = 'prelievo_confermato' where id = p_ordine_produzione_riga_id;
 end;
 $$;
 
 grant execute on function registra_prelievo_produzione(bigint, jsonb) to authenticated;
 
 create or replace function registra_confezionamento(
-  p_ordine_produzione_id bigint,
+  p_ordine_produzione_riga_id bigint,
   p_numero_lotto text,
   p_quantita numeric,
   p_data_produzione date,
@@ -441,18 +446,18 @@ declare
   v_lotto_id bigint;
 begin
   select prodotto_finito_id into v_prodotto_finito_id
-    from ordini_produzione where id = p_ordine_produzione_id;
+    from ordini_produzione_righe where id = p_ordine_produzione_riga_id;
 
   select id into v_causale_id from causali_prodotti_finiti where codice = 'confezionamento';
 
-  insert into lotti_prodotti_finiti (prodotto_finito_id, ordine_produzione_id, numero_lotto, data_produzione, data_scadenza, creato_da)
-  values (v_prodotto_finito_id, p_ordine_produzione_id, p_numero_lotto, p_data_produzione, p_data_scadenza, auth.uid())
+  insert into lotti_prodotti_finiti (prodotto_finito_id, ordine_produzione_riga_id, numero_lotto, data_produzione, data_scadenza, creato_da)
+  values (v_prodotto_finito_id, p_ordine_produzione_riga_id, p_numero_lotto, p_data_produzione, p_data_scadenza, auth.uid())
   returning id into v_lotto_id;
 
-  insert into movimenti_prodotti_finiti (lotto_id, causale_id, quantita, ordine_produzione_id, utente_id)
-  values (v_lotto_id, v_causale_id, p_quantita, p_ordine_produzione_id, auth.uid());
+  insert into movimenti_prodotti_finiti (lotto_id, causale_id, quantita, ordine_produzione_riga_id, utente_id)
+  values (v_lotto_id, v_causale_id, p_quantita, p_ordine_produzione_riga_id, auth.uid());
 
-  update ordini_produzione set stato = 'completato' where id = p_ordine_produzione_id;
+  update ordini_produzione_righe set stato = 'completato' where id = p_ordine_produzione_riga_id;
 
   return v_lotto_id;
 end;

@@ -106,6 +106,12 @@ create policy "scrittura_direttore" on ordini_produzione for insert with check (
 create policy "modifica_direttore_produzione_confezionamento" on ordini_produzione for update using (ruolo_utente() in ('direttore', 'responsabile_produzione', 'responsabile_confezionamento'));
 create policy "eliminazione_direttore" on ordini_produzione for delete using (ruolo_utente() = 'direttore');
 
+alter table ordini_produzione_righe enable row level security;
+create policy "lettura_autenticati" on ordini_produzione_righe for select using (auth.role() = 'authenticated');
+create policy "scrittura_direttore" on ordini_produzione_righe for insert with check (ruolo_utente() = 'direttore');
+create policy "modifica_direttore_produzione_confezionamento" on ordini_produzione_righe for update using (ruolo_utente() in ('direttore', 'responsabile_produzione', 'responsabile_confezionamento'));
+create policy "eliminazione_direttore" on ordini_produzione_righe for delete using (ruolo_utente() = 'direttore');
+
 -- =========================================================================
 -- MAGAZZINO MATERIE PRIME — lotti e causali gestiti da direttore o
 -- responsabile produzione; movimenti append-only, nessun update/delete.
