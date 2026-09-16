@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prodotti Finiti — Dolci &amp; Sapori</title>
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body class="app-body">
+  <div class="topbar">
+    <button class="icon-btn" id="menu-btn" aria-label="Apri menu">&#9776;</button>
+    <img src="assets/img/logo.png" alt="Dolci &amp; Sapori" class="logo" style="height:26px;margin:0;">
+    <div class="spacer"></div>
+    <span class="topbar-user" id="topbar-user"></span>
+    <button class="logout-link" id="logout-btn" style="width:auto;">Esci</button>
+  </div>
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="app-main">
+    <h1>Prodotti Finiti</h1>
+
+    <section class="panel">
+      <h2 id="form-title">Nuovo prodotto finito</h2>
+      <form id="prodotto-form">
+        <input type="hidden" id="prodotto-id">
+        <div class="form-row">
+          <div>
+            <label for="nome">Nome *</label>
+            <input type="text" id="nome" required>
+          </div>
+          <div>
+            <label for="unita-base">Unità di misura base *</label>
+            <select id="unita-base" required></select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div>
+            <label for="giorni-preavviso">Giorni di preavviso scadenza</label>
+            <input type="number" id="giorni-preavviso" min="0" value="0">
+          </div>
+          <div></div>
+        </div>
+        <label for="note">Note</label>
+        <textarea id="note" rows="2"></textarea>
+        <p class="error" id="error-message"></p>
+        <div class="btn-row">
+          <button type="submit" id="submit-btn">Salva</button>
+          <button type="button" class="btn-secondary" id="cancel-btn" hidden>Annulla</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>Elenco prodotti finiti</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Nome</th><th>Unità base</th><th>Preavviso scad.</th><th></th></tr></thead>
+          <tbody id="prodotti-tbody"></tbody>
+        </table>
+      </div>
+      <p class="empty-state" id="empty-state" hidden>Nessun prodotto finito inserito.</p>
+    </section>
+
+    <section class="panel" id="ricetta-panel" hidden>
+      <h2 id="ricetta-title">Ricetta</h2>
+      <div id="ricetta-content"></div>
+      <div class="btn-row" style="margin-top:16px;">
+        <button type="button" class="btn-secondary" id="chiudi-ricetta-btn">Chiudi</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+  <script src="assets/js/supabase-client.js"></script>
+  <script src="assets/js/auth-guard.js"></script>
+  <script src="assets/js/nav.js"></script>
+  <script src="assets/js/prodotti-finiti.js"></script>
+</body>
+</html>
