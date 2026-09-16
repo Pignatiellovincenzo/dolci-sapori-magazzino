@@ -9,6 +9,12 @@ const MENU = [
       { href: 'prodotti-finiti.html', label: 'Prodotti Finiti', ruoli: ['direttore', 'responsabile_confezionamento'] },
     ],
   },
+  {
+    area: 'Produzione',
+    voci: [
+      { href: 'ordini-produzione.html', label: 'Ordini di Produzione', ruoli: ['direttore', 'responsabile_produzione'] },
+    ],
+  },
 ];
 
 function paginaCorrente() {
