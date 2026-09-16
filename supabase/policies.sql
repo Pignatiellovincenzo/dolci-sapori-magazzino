@@ -115,7 +115,7 @@ create policy "eliminazione_direttore" on ricette_ingredienti for delete using (
 alter table ordini_produzione enable row level security;
 create policy "lettura_autenticati" on ordini_produzione for select using (auth.role() = 'authenticated');
 create policy "scrittura_direttore" on ordini_produzione for insert with check (ruolo_utente() = 'direttore' and creato_da = auth.uid());
-create policy "modifica_direttore_produzione" on ordini_produzione for update using (ruolo_utente() in ('direttore', 'responsabile_produzione'));
+create policy "modifica_direttore_produzione_confezionamento" on ordini_produzione for update using (ruolo_utente() in ('direttore', 'responsabile_produzione', 'responsabile_confezionamento'));
 create policy "eliminazione_direttore" on ordini_produzione for delete using (ruolo_utente() = 'direttore');
 
 -- =========================================================================

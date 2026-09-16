@@ -2,7 +2,6 @@ let utenteCorrente = null;
 let unitaMisura = [];
 let materiePrime = [];
 let prodottiConRicetta = [];
-let causaleScaricoProduzioneId = null;
 let ordineInGestione = null;
 
 const prodottoSelect = document.getElementById('prodotto-select');
@@ -37,7 +36,6 @@ async function init() {
   await caricaUnitaMisura();
   await caricaMateriePrime();
   await caricaProdottiConRicetta();
-  await caricaCausale();
   await caricaOrdini();
 }
 
@@ -75,16 +73,6 @@ async function caricaProdottiConRicetta() {
     .join('') || '<option value="">Nessun prodotto con ricetta attiva</option>';
 }
 
-async function caricaCausale() {
-  const { data, error } = await supabaseClient
-    .from('causali_materie_prime')
-    .select('id')
-    .eq('codice', 'scarico_produzione')
-    .single();
-  if (error) { errorMessage.textContent = 'Errore causale: ' + error.message; return; }
-  causaleScaricoProduzioneId = data.id;
-}
-
 function nomeUnita(id) {
   const u = unitaMisura.find(x => x.id === id);
   return u ? `${u.nome} (${u.codice})` : '—';
@@ -95,10 +83,6 @@ function nomeMateriaPrima(id) {
   return m ? m.nome : '—';
 }
 
-function unitaBaseMateriaPrima(id) {
-  const m = materiePrime.find(x => x.id === id);
-  return m ? m.unita_misura_base_id : null;
-}
 
 async function caricaOrdini() {
   const { data, error } = await supabaseClient
@@ -296,40 +280,28 @@ async function confermaPrelievo(sezioni) {
     sezioni[sezIdx].allocazioni[allocIdx].presa = Number(input.value) || 0;
   });
 
-  const righe = [];
+  const allocazioni = [];
   for (const sez of sezioni) {
     for (const alloc of sez.allocazioni) {
       if (alloc.presa > 0) {
-        righe.push({
-          lotto_id: alloc.lottoId,
-          causale_id: causaleScaricoProduzioneId,
-          unita_misura_id: unitaBaseMateriaPrima(sez.materiaPrimaId),
-          quantita_originale: alloc.presa,
-          ordine_produzione_id: ordineInGestione.id,
-          utente_id: utenteCorrente.id,
-        });
+        allocazioni.push({ lotto_id: alloc.lottoId, quantita: alloc.presa });
       }
     }
   }
 
-  if (righe.length === 0) {
+  if (allocazioni.length === 0) {
     alert('Nessuna quantità da prelevare.');
     return;
   }
 
-  const { error } = await supabaseClient.from('movimenti_materie_prime').insert(righe);
+  const { error } = await supabaseClient.rpc('registra_prelievo_produzione', {
+    p_ordine_produzione_id: ordineInGestione.id,
+    p_allocazioni: allocazioni,
+  });
+
   if (error) {
-    alert('Errore nella registrazione del movimento: ' + error.message);
+    alert('Errore nella registrazione del prelievo: ' + error.message);
     return;
-  }
-
-  const { error: errStato } = await supabaseClient
-    .from('ordini_produzione')
-    .update({ stato: 'prelievo_confermato' })
-    .eq('id', ordineInGestione.id);
-
-  if (errStato) {
-    alert('Movimento registrato, ma errore nell\'aggiornare lo stato dell\'ordine: ' + errStato.message);
   }
 
   prelievoPanel.hidden = true;

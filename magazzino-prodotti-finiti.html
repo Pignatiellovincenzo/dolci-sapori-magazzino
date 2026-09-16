@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Magazzino Prodotti Finiti — Dolci &amp; Sapori</title>
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body class="app-body">
+  <div class="topbar">
+    <button class="icon-btn" id="menu-btn" aria-label="Apri menu">&#9776;</button>
+    <img src="assets/img/logo.png" alt="Dolci &amp; Sapori" class="logo" style="height:26px;margin:0;">
+    <div class="spacer"></div>
+    <span class="topbar-user" id="topbar-user"></span>
+    <button class="logout-link" id="logout-btn" style="width:auto;">Esci</button>
+  </div>
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="app-main">
+    <h1>Magazzino Prodotti Finiti</h1>
+
+    <section class="panel">
+      <h2>Ordini da confezionare</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Prodotto</th><th>Quantità richiesta</th><th>Prelievo confermato il</th><th></th></tr></thead>
+          <tbody id="da-confezionare-tbody"></tbody>
+        </table>
+      </div>
+      <p class="empty-state" id="empty-da-confezionare" hidden>Nessun ordine in attesa di confezionamento.</p>
+    </section>
+
+    <section class="panel" id="confeziona-panel" hidden>
+      <h2 id="confeziona-title">Registra confezionamento</h2>
+      <div class="form-row">
+        <div>
+          <label for="numero-lotto-input">Numero lotto</label>
+          <input type="text" id="numero-lotto-input">
+        </div>
+        <div>
+          <label for="quantita-confezionata-input">Quantità confezionata</label>
+          <input type="number" id="quantita-confezionata-input" min="0" step="any">
+        </div>
+      </div>
+      <div class="form-row">
+        <div>
+          <label for="data-produzione-input">Data produzione</label>
+          <input type="date" id="data-produzione-input">
+        </div>
+        <div>
+          <label for="data-scadenza-input">Data scadenza</label>
+          <input type="date" id="data-scadenza-input">
+        </div>
+      </div>
+      <p class="error" id="confeziona-error"></p>
+      <div class="btn-row">
+        <button type="button" id="salva-confezionamento-btn">Salva confezionamento</button>
+        <button type="button" class="btn-secondary" id="annulla-confezionamento-btn">Annulla</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Giacenza prodotti finiti</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Prodotto</th><th>Lotto</th><th>Giacenza</th><th>Scadenza</th><th>Stato</th></tr></thead>
+          <tbody id="giacenza-tbody"></tbody>
+        </table>
+      </div>
+      <p class="empty-state" id="empty-giacenza" hidden>Nessuna giacenza di prodotti finiti.</p>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+  <script src="assets/js/supabase-client.js"></script>
+  <script src="assets/js/auth-guard.js"></script>
+  <script src="assets/js/nav.js"></script>
+  <script src="assets/js/magazzino-prodotti-finiti.js"></script>
+</body>
+</html>
