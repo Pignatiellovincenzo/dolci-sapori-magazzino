@@ -1,12 +1,14 @@
--- Row Level Security — Gestionale Magazzino Dolci Sapori
--- Da eseguire nell'SQL Editor di Supabase DOPO schema.sql e dopo aver creato
--- almeno un utente direttore nella tabella "utenti".
+-- Row Level Security — Gestionale Magazzino Dolci & Sapori (v2)
+-- Da eseguire dopo schema.sql e seed.sql, e dopo aver creato almeno un
+-- utente direttore nella tabella "utenti".
 --
 -- Logica generale:
--- - LETTURA: chiunque sia autenticato puo' leggere tutte le tabelle (azienda
---   piccola, un solo sito, tutti i ruoli sono personale interno fidato).
--- - SCRITTURA (insert/update/delete): limitata in base al ruolo, secondo i
---   flussi operativi decisi (vedi Doc Decisioni su Drive).
+-- - LETTURA: chiunque sia autenticato puo' leggere tutte le tabelle
+--   (personale interno fidato, unico sito).
+-- - SCRITTURA: limitata per ruolo secondo i flussi operativi decisi.
+-- - I due registri movimenti (append-only) non hanno NESSUNA policy di
+--   update/delete: significa che sono bloccati a livello di database,
+--   non solo per convenzione applicativa.
 
 create or replace function ruolo_utente()
 returns text
@@ -43,9 +45,8 @@ create policy "modifica_direttore" on clienti for update using (ruolo_utente() =
 create policy "eliminazione_direttore" on clienti for delete using (ruolo_utente() = 'direttore');
 
 -- =========================================================================
--- UNITA' DI MISURA — aggiunta libera per tutti gli utenti autenticati,
--- modifica/eliminazione riservata al direttore per evitare di rompere
--- riferimenti gia' in uso.
+-- UNITA' DI MISURA — aggiunta libera per tutti gli autenticati, modifica ed
+-- eliminazione riservate al direttore.
 -- =========================================================================
 alter table unita_misura enable row level security;
 create policy "lettura_autenticati" on unita_misura for select using (auth.role() = 'authenticated');
@@ -54,7 +55,7 @@ create policy "modifica_direttore" on unita_misura for update using (ruolo_utent
 create policy "eliminazione_direttore" on unita_misura for delete using (ruolo_utente() = 'direttore');
 
 -- =========================================================================
--- MATERIE PRIME (anagrafica + conversioni)
+-- MATERIE PRIME (anagrafica, conversioni, allergeni)
 -- =========================================================================
 alter table materie_prime enable row level security;
 create policy "lettura_autenticati" on materie_prime for select using (auth.role() = 'authenticated');
@@ -68,17 +69,20 @@ create policy "scrittura_direttore" on materie_prime_conversioni for insert with
 create policy "modifica_direttore" on materie_prime_conversioni for update using (ruolo_utente() = 'direttore');
 create policy "eliminazione_direttore" on materie_prime_conversioni for delete using (ruolo_utente() = 'direttore');
 
--- =========================================================================
--- LOTTI MATERIE PRIME — carico/gestione da direttore o responsabile produzione
--- =========================================================================
-alter table lotti_materie_prime enable row level security;
-create policy "lettura_autenticati" on lotti_materie_prime for select using (auth.role() = 'authenticated');
-create policy "scrittura_direttore_produzione" on lotti_materie_prime for insert with check (ruolo_utente() in ('direttore', 'responsabile_produzione') and creato_da = auth.uid());
-create policy "modifica_direttore_produzione" on lotti_materie_prime for update using (ruolo_utente() in ('direttore', 'responsabile_produzione'));
-create policy "eliminazione_direttore_produzione" on lotti_materie_prime for delete using (ruolo_utente() in ('direttore', 'responsabile_produzione'));
+alter table allergeni enable row level security;
+create policy "lettura_autenticati" on allergeni for select using (auth.role() = 'authenticated');
+create policy "scrittura_direttore" on allergeni for insert with check (ruolo_utente() = 'direttore');
+create policy "modifica_direttore" on allergeni for update using (ruolo_utente() = 'direttore');
+create policy "eliminazione_direttore" on allergeni for delete using (ruolo_utente() = 'direttore');
+
+alter table materie_prime_allergeni enable row level security;
+create policy "lettura_autenticati" on materie_prime_allergeni for select using (auth.role() = 'authenticated');
+create policy "scrittura_direttore" on materie_prime_allergeni for insert with check (ruolo_utente() = 'direttore');
+create policy "modifica_direttore" on materie_prime_allergeni for update using (ruolo_utente() = 'direttore');
+create policy "eliminazione_direttore" on materie_prime_allergeni for delete using (ruolo_utente() = 'direttore');
 
 -- =========================================================================
--- PRODOTTI FINITI (anagrafica + conversioni) e RICETTE
+-- PRODOTTI FINITI (anagrafica, conversioni) e RICETTE
 -- =========================================================================
 alter table prodotti_finiti enable row level security;
 create policy "lettura_autenticati" on prodotti_finiti for select using (auth.role() = 'authenticated');
@@ -105,7 +109,8 @@ create policy "modifica_direttore" on ricette_ingredienti for update using (ruol
 create policy "eliminazione_direttore" on ricette_ingredienti for delete using (ruolo_utente() = 'direttore');
 
 -- =========================================================================
--- FLUSSO PRODUZIONE
+-- ORDINI DI PRODUZIONE — assegnati dal direttore, lo stato viene poi
+-- avanzato anche dal responsabile produzione.
 -- =========================================================================
 alter table ordini_produzione enable row level security;
 create policy "lettura_autenticati" on ordini_produzione for select using (auth.role() = 'authenticated');
@@ -113,23 +118,60 @@ create policy "scrittura_direttore" on ordini_produzione for insert with check (
 create policy "modifica_direttore_produzione" on ordini_produzione for update using (ruolo_utente() in ('direttore', 'responsabile_produzione'));
 create policy "eliminazione_direttore" on ordini_produzione for delete using (ruolo_utente() = 'direttore');
 
-alter table ordini_produzione_prelievi enable row level security;
-create policy "lettura_autenticati" on ordini_produzione_prelievi for select using (auth.role() = 'authenticated');
-create policy "scrittura_direttore_produzione" on ordini_produzione_prelievi for insert with check (ruolo_utente() in ('direttore', 'responsabile_produzione') and confermato_da = auth.uid());
-create policy "modifica_direttore_produzione" on ordini_produzione_prelievi for update using (ruolo_utente() in ('direttore', 'responsabile_produzione'));
-create policy "eliminazione_direttore_produzione" on ordini_produzione_prelievi for delete using (ruolo_utente() in ('direttore', 'responsabile_produzione'));
+-- =========================================================================
+-- MAGAZZINO MATERIE PRIME — lotti e causali gestiti da direttore o
+-- responsabile produzione; movimenti append-only, nessun update/delete.
+-- =========================================================================
+alter table lotti_materie_prime enable row level security;
+create policy "lettura_autenticati" on lotti_materie_prime for select using (auth.role() = 'authenticated');
+create policy "scrittura_direttore_produzione" on lotti_materie_prime for insert with check (ruolo_utente() in ('direttore', 'responsabile_produzione') and creato_da = auth.uid());
+create policy "modifica_direttore_produzione" on lotti_materie_prime for update using (ruolo_utente() in ('direttore', 'responsabile_produzione'));
+create policy "eliminazione_direttore" on lotti_materie_prime for delete using (ruolo_utente() = 'direttore');
+
+alter table causali_materie_prime enable row level security;
+create policy "lettura_autenticati" on causali_materie_prime for select using (auth.role() = 'authenticated');
+-- Nessuna policy di insert/update/delete: elenco fisso, gestito solo da SQL Editor.
+
+alter table movimenti_materie_prime enable row level security;
+create policy "lettura_autenticati" on movimenti_materie_prime for select using (auth.role() = 'authenticated');
+create policy "scrittura_direttore_produzione" on movimenti_materie_prime for insert with check (ruolo_utente() in ('direttore', 'responsabile_produzione') and utente_id = auth.uid());
+-- Nessuna policy di update/delete: registro append-only, immutabile per costruzione.
 
 -- =========================================================================
--- LOTTI PRODOTTI FINITI — creati dal responsabile confezionamento
+-- MAGAZZINO PRODOTTI FINITI — lotti gestiti da direttore o responsabile
+-- confezionamento; movimenti append-only con causale distinta per ruolo.
 -- =========================================================================
 alter table lotti_prodotti_finiti enable row level security;
 create policy "lettura_autenticati" on lotti_prodotti_finiti for select using (auth.role() = 'authenticated');
 create policy "scrittura_direttore_confezionamento" on lotti_prodotti_finiti for insert with check (ruolo_utente() in ('direttore', 'responsabile_confezionamento') and creato_da = auth.uid());
 create policy "modifica_direttore_confezionamento" on lotti_prodotti_finiti for update using (ruolo_utente() in ('direttore', 'responsabile_confezionamento'));
-create policy "eliminazione_direttore_confezionamento" on lotti_prodotti_finiti for delete using (ruolo_utente() in ('direttore', 'responsabile_confezionamento'));
+create policy "eliminazione_direttore" on lotti_prodotti_finiti for delete using (ruolo_utente() = 'direttore');
+
+alter table causali_prodotti_finiti enable row level security;
+create policy "lettura_autenticati" on causali_prodotti_finiti for select using (auth.role() = 'authenticated');
+-- Nessuna policy di insert/update/delete: elenco fisso, gestito solo da SQL Editor.
+
+alter table movimenti_prodotti_finiti enable row level security;
+create policy "lettura_autenticati" on movimenti_prodotti_finiti for select using (auth.role() = 'authenticated');
+-- Il responsabile confezionamento puo' registrare solo l'uscita da produzione
+-- (causale "confezionamento"); qualsiasi altra causale (scarico_vendita,
+-- rettifiche, scarti) resta decisione del direttore, coerente col flusso
+-- ordini di vendita gia' deciso.
+create policy "scrittura_per_causale" on movimenti_prodotti_finiti for insert with check (
+  utente_id = auth.uid()
+  and exists (
+    select 1 from causali_prodotti_finiti c
+    where c.id = causale_id
+      and (
+        (c.codice = 'confezionamento' and ruolo_utente() in ('direttore', 'responsabile_confezionamento'))
+        or (c.codice <> 'confezionamento' and ruolo_utente() = 'direttore')
+      )
+  )
+);
+-- Nessuna policy di update/delete: registro append-only, immutabile per costruzione.
 
 -- =========================================================================
--- FLUSSO ORDINI DI VENDITA — creati e allocati solo dal direttore
+-- ORDINI DI VENDITA — creati e allocati solo dal direttore.
 -- =========================================================================
 alter table ordini_vendita enable row level security;
 create policy "lettura_autenticati" on ordini_vendita for select using (auth.role() = 'authenticated');
@@ -142,9 +184,3 @@ create policy "lettura_autenticati" on ordini_vendita_righe for select using (au
 create policy "scrittura_direttore" on ordini_vendita_righe for insert with check (ruolo_utente() = 'direttore');
 create policy "modifica_direttore" on ordini_vendita_righe for update using (ruolo_utente() = 'direttore');
 create policy "eliminazione_direttore" on ordini_vendita_righe for delete using (ruolo_utente() = 'direttore');
-
-alter table ordini_vendita_allocazioni enable row level security;
-create policy "lettura_autenticati" on ordini_vendita_allocazioni for select using (auth.role() = 'authenticated');
-create policy "scrittura_direttore" on ordini_vendita_allocazioni for insert with check (ruolo_utente() = 'direttore' and confermato_da = auth.uid());
-create policy "modifica_direttore" on ordini_vendita_allocazioni for update using (ruolo_utente() = 'direttore');
-create policy "eliminazione_direttore" on ordini_vendita_allocazioni for delete using (ruolo_utente() = 'direttore');
