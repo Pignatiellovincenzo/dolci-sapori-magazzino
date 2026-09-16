@@ -68,6 +68,7 @@ create table lotti_materie_prime (
   quantita numeric not null check (quantita >= 0), -- espressa in unita_misura_base della materia prima
   data_arrivo date not null default current_date,
   data_scadenza date,
+  creato_da uuid not null references utenti (id), -- chi ha registrato il carico (direttore o responsabile produzione)
   creato_il timestamptz not null default now()
 );
 
@@ -149,6 +150,7 @@ create table lotti_prodotti_finiti (
   quantita numeric not null check (quantita >= 0), -- espressa in unita_misura_base del prodotto
   data_produzione date not null default current_date,
   data_scadenza date,
+  creato_da uuid not null references utenti (id), -- chi ha registrato il confezionamento
   creato_il timestamptz not null default now()
 );
 
