@@ -238,7 +238,7 @@ async function avviaModifica(prodotto) {
   }));
   renderIngredienti();
 
-  formTitle.textContent = 'Modifica prodotto finito';
+  formTitle.textContent = 'Modifica prodotto';
   submitBtn.textContent = 'Salva modifiche';
   cancelBtn.hidden = false;
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -249,14 +249,14 @@ function annullaModifica() {
   idInput.value = '';
   ingredientiRighe = [];
   renderIngredienti();
-  formTitle.textContent = 'Nuovo prodotto finito';
+  formTitle.textContent = 'Nuovo prodotto';
   submitBtn.textContent = 'Salva';
   cancelBtn.hidden = true;
   errorMessage.textContent = '';
 }
 
 async function eliminaProdotto(prodotto) {
-  if (!confirm(`Eliminare il prodotto finito "${prodotto.nome}"?`)) return;
+  if (!confirm(`Eliminare il prodotto "${prodotto.nome}"?`)) return;
 
   const { error } = await supabaseClient.from('prodotti_finiti').delete().eq('id', prodotto.id);
 

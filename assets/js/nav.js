@@ -6,7 +6,7 @@ const MENU = [
     voci: [
       { href: 'fornitori.html', label: 'Fornitori', ruoli: ['direttore', 'responsabile_produzione'] },
       { href: 'materie-prime.html', label: 'Materie Prime', ruoli: ['direttore', 'responsabile_produzione'] },
-      { href: 'prodotti-finiti.html', label: 'Prodotti Finiti', ruoli: ['direttore', 'responsabile_confezionamento'] },
+      { href: 'prodotti-finiti.html', label: 'Prodotti', ruoli: ['direttore', 'responsabile_confezionamento'] },
     ],
   },
   {
