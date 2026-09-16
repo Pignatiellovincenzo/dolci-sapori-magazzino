@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Materie Prime — Dolci &amp; Sapori</title>
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+  <nav class="app-nav">
+    <img src="assets/img/logo.png" alt="Dolci &amp; Sapori" class="logo">
+    <a href="dashboard.html">Dashboard</a>
+    <a href="fornitori.html">Fornitori</a>
+    <a href="materie-prime.html" class="active">Materie Prime</a>
+    <div class="spacer"></div>
+    <button class="logout-link" id="logout-btn" style="width:auto;">Esci</button>
+  </nav>
+
+  <main class="app-main">
+    <h1>Materie Prime</h1>
+
+    <section class="panel">
+      <h2 id="form-title">Nuova materia prima</h2>
+      <form id="materia-form">
+        <input type="hidden" id="materia-id">
+        <div class="form-row">
+          <div>
+            <label for="nome">Nome *</label>
+            <input type="text" id="nome" required>
+          </div>
+          <div>
+            <label for="unita-base">Unità di misura base *</label>
+            <select id="unita-base" required></select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div>
+            <label for="giorni-preavviso">Giorni di preavviso scadenza</label>
+            <input type="number" id="giorni-preavviso" min="0" value="0">
+          </div>
+          <div></div>
+        </div>
+
+        <label>Allergeni</label>
+        <div class="checkbox-grid" id="allergeni-grid"></div>
+
+        <label for="note">Note</label>
+        <textarea id="note" rows="2"></textarea>
+
+        <p class="error" id="error-message"></p>
+        <div class="btn-row">
+          <button type="submit" id="submit-btn">Salva</button>
+          <button type="button" class="btn-secondary" id="cancel-btn" hidden>Annulla</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>Elenco materie prime</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Nome</th><th>Unità base</th><th>Preavviso scad.</th><th>Allergeni</th><th></th></tr>
+          </thead>
+          <tbody id="materie-tbody"></tbody>
+        </table>
+      </div>
+      <p class="empty-state" id="empty-state" hidden>Nessuna materia prima inserita.</p>
+    </section>
+
+    <section class="panel" id="conversioni-panel" hidden>
+      <h2 id="conversioni-title">Conversioni unità di misura</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Unità</th><th>1 unità = quanti/e (unità base)</th><th></th></tr></thead>
+          <tbody id="conversioni-tbody"></tbody>
+        </table>
+      </div>
+      <div class="form-row" style="margin-top:16px;">
+        <div>
+          <label for="conversione-unita">Nuova unità</label>
+          <select id="conversione-unita"></select>
+        </div>
+        <div>
+          <label for="conversione-fattore">Fattore di conversione</label>
+          <input type="number" id="conversione-fattore" min="0" step="any">
+        </div>
+      </div>
+      <div class="btn-row">
+        <button type="button" id="aggiungi-conversione-btn">Aggiungi conversione</button>
+        <button type="button" class="btn-secondary" id="chiudi-conversioni-btn">Chiudi</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+  <script src="assets/js/supabase-client.js"></script>
+  <script src="assets/js/auth-guard.js"></script>
+  <script src="assets/js/materie-prime.js"></script>
+</body>
+</html>

@@ -21,6 +21,9 @@ body {
   font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
   background: var(--bg);
   color: var(--text);
+}
+
+body.centered {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -138,4 +141,200 @@ button:disabled {
 
 .logout-link:hover {
   background: var(--bg);
+}
+
+#menu {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+#menu a {
+  display: block;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+#menu a:hover {
+  background: var(--bg);
+}
+
+/* ---- Layout pagine operative ---- */
+
+.app-nav {
+  background: var(--card-bg);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.app-nav .logo {
+  height: 28px;
+  margin: 0;
+}
+
+.app-nav a {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.app-nav a:hover,
+.app-nav a.active {
+  color: var(--primary);
+}
+
+.app-nav .spacer {
+  flex: 1;
+}
+
+.app-main {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px 20px 60px;
+}
+
+.app-main h1 {
+  font-size: 1.4rem;
+  margin: 0 0 20px;
+}
+
+.panel {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.panel h2 {
+  font-size: 1.05rem;
+  margin: 0 0 16px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 16px;
+}
+
+@media (max-width: 560px) {
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+select,
+textarea {
+  width: 100%;
+  padding: 10px 12px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 1rem;
+  font-family: inherit;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.checkbox-grid label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.checkbox-grid input {
+  width: auto;
+  margin: 0;
+}
+
+.btn-row {
+  display: flex;
+  gap: 10px;
+}
+
+.btn-row button {
+  width: auto;
+  padding: 10px 18px;
+}
+
+.btn-secondary {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.btn-secondary:hover {
+  background: var(--bg);
+}
+
+.btn-danger {
+  background: none;
+  color: var(--error);
+  border: 1px solid var(--error);
+}
+
+.btn-danger:hover {
+  background: #fbeceb;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+th, td {
+  text-align: left;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+th {
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+}
+
+td.actions {
+  white-space: nowrap;
+  text-align: right;
+}
+
+td.actions button {
+  width: auto;
+  padding: 5px 10px;
+  font-size: 0.8rem;
+  margin-left: 6px;
+}
+
+.empty-state {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  padding: 12px 0;
+}
+
+.table-wrap {
+  overflow-x: auto;
 }

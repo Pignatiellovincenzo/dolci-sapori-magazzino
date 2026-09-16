@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fornitori — Dolci &amp; Sapori</title>
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+  <nav class="app-nav">
+    <img src="assets/img/logo.png" alt="Dolci &amp; Sapori" class="logo">
+    <a href="dashboard.html">Dashboard</a>
+    <a href="fornitori.html" class="active">Fornitori</a>
+    <a href="materie-prime.html">Materie Prime</a>
+    <div class="spacer"></div>
+    <button class="logout-link" id="logout-btn" style="width:auto;">Esci</button>
+  </nav>
+
+  <main class="app-main">
+    <h1>Fornitori</h1>
+
+    <section class="panel">
+      <h2 id="form-title">Nuovo fornitore</h2>
+      <form id="fornitore-form">
+        <input type="hidden" id="fornitore-id">
+        <div class="form-row">
+          <div>
+            <label for="nome">Nome *</label>
+            <input type="text" id="nome" required>
+          </div>
+          <div>
+            <label for="telefono">Telefono</label>
+            <input type="text" id="telefono">
+          </div>
+        </div>
+        <label for="email">Email</label>
+        <input type="email" id="email">
+        <label for="note">Note</label>
+        <textarea id="note" rows="2"></textarea>
+        <p class="error" id="error-message"></p>
+        <div class="btn-row">
+          <button type="submit" id="submit-btn">Salva</button>
+          <button type="button" class="btn-secondary" id="cancel-btn" hidden>Annulla</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>Elenco fornitori</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Nome</th><th>Telefono</th><th>Email</th><th>Note</th><th></th></tr>
+          </thead>
+          <tbody id="fornitori-tbody"></tbody>
+        </table>
+      </div>
+      <p class="empty-state" id="empty-state" hidden>Nessun fornitore inserito.</p>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+  <script src="assets/js/supabase-client.js"></script>
+  <script src="assets/js/auth-guard.js"></script>
+  <script src="assets/js/fornitori.js"></script>
+</body>
+</html>

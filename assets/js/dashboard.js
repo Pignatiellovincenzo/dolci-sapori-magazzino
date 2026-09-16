@@ -9,6 +9,22 @@ const RUOLI_LABEL = {
   responsabile_confezionamento: 'Responsabile Confezionamento',
 };
 
+const VOCI_MENU = [
+  { href: 'fornitori.html', label: 'Fornitori', ruoli: ['direttore', 'responsabile_produzione'] },
+  { href: 'materie-prime.html', label: 'Materie Prime', ruoli: ['direttore', 'responsabile_produzione'] },
+];
+
+function renderMenu(ruolo) {
+  const menu = document.getElementById('menu');
+  for (const voce of VOCI_MENU) {
+    if (!voce.ruoli.includes(ruolo)) continue;
+    const link = document.createElement('a');
+    link.href = voce.href;
+    link.textContent = voce.label;
+    menu.appendChild(link);
+  }
+}
+
 async function loadUser() {
   const { data: { session } } = await supabaseClient.auth.getSession();
 
@@ -31,6 +47,7 @@ async function loadUser() {
 
   welcomeName.textContent = `Ciao, ${utente.nome}`;
   roleBadge.textContent = RUOLI_LABEL[utente.ruolo] || utente.ruolo;
+  renderMenu(utente.ruolo);
 }
 
 loadUser();
