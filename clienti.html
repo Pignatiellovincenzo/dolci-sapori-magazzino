@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clienti — Dolci &amp; Sapori</title>
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body class="app-body">
+  <div class="topbar">
+    <button class="icon-btn" id="menu-btn" aria-label="Apri menu">&#9776;</button>
+    <img src="assets/img/logo.png" alt="Dolci &amp; Sapori" class="logo" style="height:26px;margin:0;">
+    <div class="spacer"></div>
+    <span class="topbar-user" id="topbar-user"></span>
+    <button class="logout-link" id="logout-btn" style="width:auto;">Esci</button>
+  </div>
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="app-main">
+    <h1>Clienti</h1>
+
+    <section class="panel">
+      <h2 id="form-title">Nuovo cliente</h2>
+      <form id="cliente-form">
+        <input type="hidden" id="cliente-id">
+        <div class="form-row">
+          <div>
+            <label for="nome">Nome *</label>
+            <input type="text" id="nome" required>
+          </div>
+          <div>
+            <label for="telefono">Telefono</label>
+            <input type="text" id="telefono">
+          </div>
+        </div>
+        <label for="email">Email</label>
+        <input type="email" id="email">
+        <label for="note">Note</label>
+        <textarea id="note" rows="2"></textarea>
+        <p class="error" id="error-message"></p>
+        <div class="btn-row">
+          <button type="submit" id="submit-btn">Salva</button>
+          <button type="button" class="btn-secondary" id="cancel-btn" hidden>Annulla</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>Elenco clienti</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Nome</th><th>Telefono</th><th>Email</th><th>Note</th><th></th></tr>
+          </thead>
+          <tbody id="clienti-tbody"></tbody>
+        </table>
+      </div>
+      <p class="empty-state" id="empty-state" hidden>Nessun cliente inserito.</p>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+  <script src="assets/js/supabase-client.js"></script>
+  <script src="assets/js/auth-guard.js"></script>
+  <script src="assets/js/nav.js"></script>
+  <script src="assets/js/clienti.js"></script>
+</body>
+</html>

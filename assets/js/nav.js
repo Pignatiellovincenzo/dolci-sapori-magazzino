@@ -21,6 +21,18 @@ const MENU = [
       { href: 'magazzino-prodotti-finiti.html', label: 'Magazzino Prodotti Finiti', ruoli: ['direttore', 'responsabile_confezionamento'] },
     ],
   },
+  {
+    area: 'Vendite',
+    voci: [
+      { href: 'ordini-vendita.html', label: 'Ordini di Vendita', ruoli: ['direttore', 'responsabile_confezionamento'] },
+    ],
+  },
+  {
+    area: 'Clienti',
+    voci: [
+      { href: 'clienti.html', label: 'Anagrafica Clienti', ruoli: ['direttore'] },
+    ],
+  },
 ];
 
 function paginaCorrente() {

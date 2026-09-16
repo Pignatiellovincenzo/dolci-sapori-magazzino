@@ -176,7 +176,7 @@ create policy "scrittura_per_causale" on movimenti_prodotti_finiti for insert wi
 alter table ordini_vendita enable row level security;
 create policy "lettura_autenticati" on ordini_vendita for select using (auth.role() = 'authenticated');
 create policy "scrittura_direttore" on ordini_vendita for insert with check (ruolo_utente() = 'direttore' and creato_da = auth.uid());
-create policy "modifica_direttore" on ordini_vendita for update using (ruolo_utente() = 'direttore');
+create policy "modifica_direttore_confezionamento" on ordini_vendita for update using (ruolo_utente() in ('direttore', 'responsabile_confezionamento'));
 create policy "eliminazione_direttore" on ordini_vendita for delete using (ruolo_utente() = 'direttore');
 
 alter table ordini_vendita_righe enable row level security;

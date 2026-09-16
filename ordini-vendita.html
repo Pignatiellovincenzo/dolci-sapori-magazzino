@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ordini di Vendita — Dolci &amp; Sapori</title>
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body class="app-body">
+  <div class="topbar">
+    <button class="icon-btn" id="menu-btn" aria-label="Apri menu">&#9776;</button>
+    <img src="assets/img/logo.png" alt="Dolci &amp; Sapori" class="logo" style="height:26px;margin:0;">
+    <div class="spacer"></div>
+    <span class="topbar-user" id="topbar-user"></span>
+    <button class="logout-link" id="logout-btn" style="width:auto;">Esci</button>
+  </div>
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="app-main">
+    <h1>Ordini di Vendita</h1>
+
+    <section class="panel" id="form-panel">
+      <h2>Nuovo ordine di vendita</h2>
+      <label for="cliente-select">Cliente</label>
+      <select id="cliente-select"></select>
+      <label for="note-input">Note</label>
+      <textarea id="note-input" rows="2"></textarea>
+      <p class="error" id="error-message"></p>
+      <button type="button" id="crea-ordine-btn">Crea ordine</button>
+    </section>
+
+    <section class="panel">
+      <h2>Elenco ordini</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Cliente</th><th>Stato</th><th>Creato il</th><th></th></tr></thead>
+          <tbody id="ordini-tbody"></tbody>
+        </table>
+      </div>
+      <p class="empty-state" id="empty-state" hidden>Nessun ordine di vendita.</p>
+    </section>
+
+    <section class="panel" id="gestione-panel" hidden>
+      <h2 id="gestione-title">Ordine</h2>
+      <div id="gestione-content"></div>
+      <div class="btn-row" style="margin-top:16px;">
+        <button type="button" class="btn-secondary" id="chiudi-gestione-btn">Chiudi</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+  <script src="assets/js/supabase-client.js"></script>
+  <script src="assets/js/auth-guard.js"></script>
+  <script src="assets/js/nav.js"></script>
+  <script src="assets/js/ordini-vendita.js"></script>
+</body>
+</html>
