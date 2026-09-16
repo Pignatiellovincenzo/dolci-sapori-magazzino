@@ -6,15 +6,16 @@
   <title>Fornitori — Dolci &amp; Sapori</title>
   <link rel="stylesheet" href="assets/css/style.css">
 </head>
-<body>
-  <nav class="app-nav">
-    <img src="assets/img/logo.png" alt="Dolci &amp; Sapori" class="logo">
-    <a href="dashboard.html">Dashboard</a>
-    <a href="fornitori.html" class="active">Fornitori</a>
-    <a href="materie-prime.html">Materie Prime</a>
+<body class="app-body">
+  <div class="topbar">
+    <button class="icon-btn" id="menu-btn" aria-label="Apri menu">&#9776;</button>
+    <img src="assets/img/logo.png" alt="Dolci &amp; Sapori" class="logo" style="height:26px;margin:0;">
     <div class="spacer"></div>
+    <span class="topbar-user" id="topbar-user"></span>
     <button class="logout-link" id="logout-btn" style="width:auto;">Esci</button>
-  </nav>
+  </div>
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+  <aside class="sidebar" id="sidebar"></aside>
 
   <main class="app-main">
     <h1>Fornitori</h1>
@@ -62,6 +63,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
   <script src="assets/js/supabase-client.js"></script>
   <script src="assets/js/auth-guard.js"></script>
+  <script src="assets/js/nav.js"></script>
   <script src="assets/js/fornitori.js"></script>
 </body>
 </html>

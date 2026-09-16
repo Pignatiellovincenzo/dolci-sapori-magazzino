@@ -12,11 +12,11 @@ const submitBtn = document.getElementById('submit-btn');
 const cancelBtn = document.getElementById('cancel-btn');
 const tbody = document.getElementById('fornitori-tbody');
 const emptyState = document.getElementById('empty-state');
-const logoutBtn = document.getElementById('logout-btn');
 
 async function init() {
   utenteCorrente = await requireAuth(['direttore', 'responsabile_produzione']);
   if (!utenteCorrente) return;
+  initShell(utenteCorrente);
   await caricaFornitori();
 }
 
@@ -142,10 +142,5 @@ form.addEventListener('submit', async (event) => {
 });
 
 cancelBtn.addEventListener('click', annullaModifica);
-
-logoutBtn.addEventListener('click', async () => {
-  await supabaseClient.auth.signOut();
-  window.location.href = 'index.html';
-});
 
 init();

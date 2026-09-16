@@ -55,13 +55,23 @@ create table materie_prime (
   note text
 );
 
+-- Facoltativa: una materia prima senza righe qui si registra sempre nella sua
+-- unita' base. Il coefficiente dipende dal fornitore (confezionamenti diversi
+-- per lo stesso fornitore), non solo dalla materia prima.
 create table materie_prime_conversioni (
   id integer generated always as identity primary key,
   materia_prima_id integer not null references materie_prime (id) on delete cascade,
+  fornitore_id integer not null references fornitori (id),
   unita_misura_id integer not null references unita_misura (id),
-  fattore_conversione numeric not null check (fattore_conversione > 0),
-  unique (materia_prima_id, unita_misura_id)
+  fattore_conversione numeric not null check (fattore_conversione > 0), -- 1 unita' = quante unita' base
+  predefinita_per_acquisto boolean not null default false, -- unita' proposta di default nel carico da questo fornitore
+  unique (materia_prima_id, fornitore_id, unita_misura_id)
 );
+
+-- Al massimo un'unita' predefinita per ogni coppia materia prima + fornitore.
+create unique index materie_prime_conversioni_una_predefinita
+  on materie_prime_conversioni (materia_prima_id, fornitore_id)
+  where predefinita_per_acquisto = true;
 
 -- =========================================================================
 -- PRODOTTI FINITI
@@ -181,12 +191,14 @@ insert into causali_materie_prime (codice, descrizione, segno) values
 -- Registro movimenti: append-only, mai UPDATE ne' DELETE (vedi policies.sql:
 -- nessuna policy di update/delete = bloccato a livello di database).
 -- La giacenza NON e' un campo: e' la vista v_giacenza_materie_prime in fondo
--- al file.
+-- al file, sempre espressa nell'unita' base della materia prima.
 create table movimenti_materie_prime (
   id bigint generated always as identity primary key,
   lotto_id bigint not null references lotti_materie_prime (id),
   causale_id integer not null references causali_materie_prime (id),
-  quantita numeric not null check (quantita > 0), -- sempre positiva, il verso lo da' "segno"
+  unita_misura_id integer not null references unita_misura (id), -- unita' in cui e' stata inserita la quantita'
+  quantita_originale numeric not null check (quantita_originale > 0), -- quantita' cosi' come inserita
+  quantita numeric not null check (quantita > 0), -- calcolata dal trigger: quantita_originale nell'unita' base
   segno smallint not null check (segno in (-1, 1)), -- impostato automaticamente da un trigger in base alla causale
   ordine_produzione_id bigint references ordini_produzione (id), -- valorizzato solo per scarico_produzione
   utente_id uuid not null references utenti (id),
@@ -194,19 +206,50 @@ create table movimenti_materie_prime (
   note text
 );
 
-create or replace function imposta_segno_movimento_materie_prime()
+-- La conversione da quantita' inserita a quantita' in unita' base non e' mai
+-- delegata al frontend: il fattore dipende da materia prima + fornitore del
+-- lotto, e va calcolato qui per garantire che sia sempre corretto.
+create or replace function imposta_segno_e_quantita_movimento_materie_prime()
 returns trigger
 language plpgsql
 as $$
+declare
+  v_materia_prima_id integer;
+  v_fornitore_id integer;
+  v_unita_base_id integer;
+  v_fattore numeric;
 begin
   select segno into new.segno from causali_materie_prime where id = new.causale_id;
+
+  select l.materia_prima_id, l.fornitore_id, mp.unita_misura_base_id
+    into v_materia_prima_id, v_fornitore_id, v_unita_base_id
+    from lotti_materie_prime l
+    join materie_prime mp on mp.id = l.materia_prima_id
+    where l.id = new.lotto_id;
+
+  if new.unita_misura_id = v_unita_base_id then
+    new.quantita := new.quantita_originale;
+  else
+    select fattore_conversione into v_fattore
+      from materie_prime_conversioni
+      where materia_prima_id = v_materia_prima_id
+        and fornitore_id = v_fornitore_id
+        and unita_misura_id = new.unita_misura_id;
+
+    if v_fattore is null then
+      raise exception 'Nessuna conversione definita per questa materia prima, questo fornitore e questa unita'' di misura';
+    end if;
+
+    new.quantita := new.quantita_originale * v_fattore;
+  end if;
+
   return new;
 end;
 $$;
 
-create trigger trg_segno_movimenti_materie_prime
+create trigger trg_segno_e_quantita_movimenti_materie_prime
 before insert on movimenti_materie_prime
-for each row execute function imposta_segno_movimento_materie_prime();
+for each row execute function imposta_segno_e_quantita_movimento_materie_prime();
 
 -- =========================================================================
 -- MAGAZZINO PRODOTTI FINITI: lotti + movimenti
@@ -303,6 +346,8 @@ create index on movimenti_materie_prime (lotto_id, data_movimento);
 create index on movimenti_materie_prime (causale_id);
 create index on movimenti_materie_prime (ordine_produzione_id);
 create index on movimenti_materie_prime (utente_id);
+create index on movimenti_materie_prime (unita_misura_id);
+create index on materie_prime_conversioni (fornitore_id);
 create index on lotti_prodotti_finiti (prodotto_finito_id);
 create index on lotti_prodotti_finiti (ordine_produzione_id);
 create index on ordini_vendita (cliente_id);

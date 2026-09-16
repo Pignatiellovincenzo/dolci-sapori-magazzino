@@ -1,6 +1,7 @@
 let utenteCorrente = null;
 let unitaMisura = [];
 let allergeni = [];
+let fornitori = [];
 let materiaInModifica = null; // per il pannello conversioni
 
 const form = document.getElementById('materia-form');
@@ -16,17 +17,20 @@ const submitBtn = document.getElementById('submit-btn');
 const cancelBtn = document.getElementById('cancel-btn');
 const tbody = document.getElementById('materie-tbody');
 const emptyState = document.getElementById('empty-state');
-const logoutBtn = document.getElementById('logout-btn');
 
 const conversioniPanel = document.getElementById('conversioni-panel');
 const conversioniTitle = document.getElementById('conversioni-title');
 const conversioniTbody = document.getElementById('conversioni-tbody');
+const conversioneFornitoreSelect = document.getElementById('conversione-fornitore');
 const conversioneUnitaSelect = document.getElementById('conversione-unita');
 const conversioneFattoreInput = document.getElementById('conversione-fattore');
+const conversionePredefinitaCheck = document.getElementById('conversione-predefinita');
 
 async function init() {
   utenteCorrente = await requireAuth(['direttore', 'responsabile_produzione']);
   if (!utenteCorrente) return;
+
+  initShell(utenteCorrente);
 
   const soloLettura = utenteCorrente.ruolo !== 'direttore';
   if (soloLettura) {
@@ -35,7 +39,23 @@ async function init() {
 
   await caricaUnitaMisura();
   await caricaAllergeni();
+  await caricaFornitori();
   await caricaMaterie();
+}
+
+async function caricaFornitori() {
+  const { data, error } = await supabaseClient.from('fornitori').select('id, nome').order('nome');
+  if (error) {
+    errorMessage.textContent = 'Errore caricamento fornitori: ' + error.message;
+    return;
+  }
+  fornitori = data;
+  conversioneFornitoreSelect.innerHTML = data.map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
+}
+
+function nomeFornitore(id) {
+  const f = fornitori.find(x => x.id === id);
+  return f ? f.nome : '—';
 }
 
 async function caricaUnitaMisura() {
@@ -240,7 +260,7 @@ async function apriConversioni(materia) {
 async function caricaConversioni() {
   const { data, error } = await supabaseClient
     .from('materie_prime_conversioni')
-    .select('id, unita_misura_id, fattore_conversione')
+    .select('id, fornitore_id, unita_misura_id, fattore_conversione, predefinita_per_acquisto')
     .eq('materia_prima_id', materiaInModifica.id)
     .order('id');
 
@@ -253,6 +273,10 @@ async function caricaConversioni() {
   for (const conv of data) {
     const tr = document.createElement('tr');
 
+    const tdFornitore = document.createElement('td');
+    tdFornitore.textContent = nomeFornitore(conv.fornitore_id);
+    tr.appendChild(tdFornitore);
+
     const tdUnita = document.createElement('td');
     tdUnita.textContent = nomeUnita(conv.unita_misura_id);
     tr.appendChild(tdUnita);
@@ -260,6 +284,10 @@ async function caricaConversioni() {
     const tdFattore = document.createElement('td');
     tdFattore.textContent = `${conv.fattore_conversione} ${nomeUnita(materiaInModifica.unita_misura_base_id)}`;
     tr.appendChild(tdFattore);
+
+    const tdPredefinita = document.createElement('td');
+    tdPredefinita.textContent = conv.predefinita_per_acquisto ? 'Sì' : '—';
+    tr.appendChild(tdPredefinita);
 
     const tdActions = document.createElement('td');
     tdActions.className = 'actions';
@@ -287,10 +315,25 @@ document.getElementById('aggiungi-conversione-btn').addEventListener('click', as
     return;
   }
 
+  const fornitoreId = Number(conversioneFornitoreSelect.value);
+  const predefinita = conversionePredefinitaCheck.checked;
+
+  if (predefinita) {
+    // Solo un'unità predefinita per materia prima + fornitore: tolgo quella
+    // eventualmente già impostata prima di inserirne una nuova.
+    await supabaseClient
+      .from('materie_prime_conversioni')
+      .update({ predefinita_per_acquisto: false })
+      .eq('materia_prima_id', materiaInModifica.id)
+      .eq('fornitore_id', fornitoreId);
+  }
+
   const { error } = await supabaseClient.from('materie_prime_conversioni').insert({
     materia_prima_id: materiaInModifica.id,
+    fornitore_id: fornitoreId,
     unita_misura_id: Number(conversioneUnitaSelect.value),
     fattore_conversione: fattore,
+    predefinita_per_acquisto: predefinita,
   });
 
   if (error) {
@@ -299,17 +342,13 @@ document.getElementById('aggiungi-conversione-btn').addEventListener('click', as
   }
 
   conversioneFattoreInput.value = '';
+  conversionePredefinitaCheck.checked = false;
   await caricaConversioni();
 });
 
 document.getElementById('chiudi-conversioni-btn').addEventListener('click', () => {
   conversioniPanel.hidden = true;
   materiaInModifica = null;
-});
-
-logoutBtn.addEventListener('click', async () => {
-  await supabaseClient.auth.signOut();
-  window.location.href = 'index.html';
 });
 
 init();
