@@ -48,10 +48,14 @@
 
     <section class="panel">
       <h2>Elenco clienti</h2>
+      <label style="display:flex; align-items:center; gap:6px; font-weight:normal;">
+        <input type="checkbox" id="mostra-disattivati-check" style="width:auto; margin:0;">
+        Mostra anche i disattivati
+      </label>
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>Nome</th><th>Telefono</th><th>Email</th><th>Note</th><th></th></tr>
+            <tr><th>Nome</th><th>Telefono</th><th>Email</th><th>Note</th><th>Stato</th><th></th></tr>
           </thead>
           <tbody id="clienti-tbody"></tbody>
         </table>

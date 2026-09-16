@@ -27,7 +27,8 @@ create table fornitori (
   nome text not null,
   telefono text,
   email text,
-  note text
+  note text,
+  attivo boolean not null default true -- disattivabile invece di eliminabile, se ha gia' storico collegato
 );
 
 create table clienti (
@@ -35,7 +36,8 @@ create table clienti (
   nome text not null,
   telefono text,
   email text,
-  note text
+  note text,
+  attivo boolean not null default true
 );
 
 create table unita_misura (
@@ -47,31 +49,31 @@ create table unita_misura (
 -- =========================================================================
 -- MATERIE PRIME
 -- =========================================================================
+-- Ogni materia prima si esprime in una o due unita' di misura (UM1 sempre
+-- presente, UM2 facoltativa) legate da un unico fattore di conversione
+-- (1 UM1 = fattore_conversione UM2). Non dipende dal fornitore: se la stessa
+-- materia prima arriva davvero da piu' fornitori con confezioni diverse, se
+-- ne crea una seconda scheda invece di modellare la variabilita' qui.
+-- unita_acquisto/unita_magazzino scelgono, tra le due, quale mostrare di
+-- default in fase di carico e quale per la giacenza; l'altra resta
+-- comunque utilizzabile (tipicamente nelle ricette, per la precisione).
 create table materie_prime (
   id integer generated always as identity primary key,
   nome text not null,
-  unita_misura_base_id integer not null references unita_misura (id),
+  unita_misura_1_id integer not null references unita_misura (id),
+  unita_misura_2_id integer references unita_misura (id),
+  fattore_conversione numeric check (fattore_conversione > 0), -- 1 unita_misura_1 = fattore_conversione unita_misura_2
+  unita_acquisto_id integer not null references unita_misura (id),
+  unita_magazzino_id integer not null references unita_misura (id),
+  fornitore_id integer references fornitori (id),
   giorni_preavviso_scadenza integer not null default 0,
-  note text
+  scorta_minima numeric not null default 0, -- soglia di riordino, nell'unita' magazzino
+  note text,
+  attivo boolean not null default true,
+  check (unita_acquisto_id in (unita_misura_1_id, unita_misura_2_id)),
+  check (unita_magazzino_id in (unita_misura_1_id, unita_misura_2_id)),
+  check ((unita_misura_2_id is null) = (fattore_conversione is null))
 );
-
--- Facoltativa: una materia prima senza righe qui si registra sempre nella sua
--- unita' base. Il coefficiente dipende dal fornitore (confezionamenti diversi
--- per lo stesso fornitore), non solo dalla materia prima.
-create table materie_prime_conversioni (
-  id integer generated always as identity primary key,
-  materia_prima_id integer not null references materie_prime (id) on delete cascade,
-  fornitore_id integer not null references fornitori (id),
-  unita_misura_id integer not null references unita_misura (id),
-  fattore_conversione numeric not null check (fattore_conversione > 0), -- 1 unita' = quante unita' base
-  predefinita_per_acquisto boolean not null default false, -- unita' proposta di default nel carico da questo fornitore
-  unique (materia_prima_id, fornitore_id, unita_misura_id)
-);
-
--- Al massimo un'unita' predefinita per ogni coppia materia prima + fornitore.
-create unique index materie_prime_conversioni_una_predefinita
-  on materie_prime_conversioni (materia_prima_id, fornitore_id)
-  where predefinita_per_acquisto = true;
 
 -- =========================================================================
 -- PRODOTTI FINITI
@@ -81,7 +83,8 @@ create table prodotti_finiti (
   nome text not null,
   unita_misura_base_id integer not null references unita_misura (id),
   giorni_preavviso_scadenza integer not null default 0,
-  note text
+  note text,
+  attivo boolean not null default true
 );
 
 create table prodotti_finiti_conversioni (
@@ -191,14 +194,14 @@ insert into causali_materie_prime (codice, descrizione, segno) values
 -- Registro movimenti: append-only, mai UPDATE ne' DELETE (vedi policies.sql:
 -- nessuna policy di update/delete = bloccato a livello di database).
 -- La giacenza NON e' un campo: e' la vista v_giacenza_materie_prime in fondo
--- al file, sempre espressa nell'unita' base della materia prima.
+-- al file, sempre espressa nell'unita' magazzino della materia prima.
 create table movimenti_materie_prime (
   id bigint generated always as identity primary key,
   lotto_id bigint not null references lotti_materie_prime (id),
   causale_id integer not null references causali_materie_prime (id),
-  unita_misura_id integer not null references unita_misura (id), -- unita' in cui e' stata inserita la quantita'
+  unita_misura_id integer not null references unita_misura (id), -- unita' in cui e' stata inserita la quantita' (UM1 o UM2 della materia)
   quantita_originale numeric not null check (quantita_originale > 0), -- quantita' cosi' come inserita
-  quantita numeric not null check (quantita > 0), -- calcolata dal trigger: quantita_originale nell'unita' base
+  quantita numeric not null check (quantita > 0), -- calcolata dal trigger: quantita_originale nell'unita' magazzino
   segno smallint not null check (segno in (-1, 1)), -- impostato automaticamente da un trigger in base alla causale
   ordine_produzione_id bigint references ordini_produzione (id), -- valorizzato solo per scarico_produzione
   utente_id uuid not null references utenti (id),
@@ -206,41 +209,36 @@ create table movimenti_materie_prime (
   note text
 );
 
--- La conversione da quantita' inserita a quantita' in unita' base non e' mai
--- delegata al frontend: il fattore dipende da materia prima + fornitore del
--- lotto, e va calcolato qui per garantire che sia sempre corretto.
+-- La conversione da quantita' inserita a quantita' in unita' magazzino non e'
+-- mai delegata al frontend: la materia prima ha al massimo due unita' (UM1,
+-- UM2) legate da un fattore unico, e va convertita nella direzione giusta a
+-- seconda di quale delle due e' l'unita' inserita.
 create or replace function imposta_segno_e_quantita_movimento_materie_prime()
 returns trigger
 language plpgsql
 as $$
 declare
-  v_materia_prima_id integer;
-  v_fornitore_id integer;
-  v_unita_base_id integer;
-  v_fattore numeric;
+  v_um1 integer;
+  v_um2 integer;
+  v_fattore numeric; -- 1 UM1 = v_fattore UM2
+  v_unita_magazzino integer;
 begin
   select segno into new.segno from causali_materie_prime where id = new.causale_id;
 
-  select l.materia_prima_id, l.fornitore_id, mp.unita_misura_base_id
-    into v_materia_prima_id, v_fornitore_id, v_unita_base_id
+  select mp.unita_misura_1_id, mp.unita_misura_2_id, mp.fattore_conversione, mp.unita_magazzino_id
+    into v_um1, v_um2, v_fattore, v_unita_magazzino
     from lotti_materie_prime l
     join materie_prime mp on mp.id = l.materia_prima_id
     where l.id = new.lotto_id;
 
-  if new.unita_misura_id = v_unita_base_id then
+  if new.unita_misura_id = v_unita_magazzino then
     new.quantita := new.quantita_originale;
-  else
-    select fattore_conversione into v_fattore
-      from materie_prime_conversioni
-      where materia_prima_id = v_materia_prima_id
-        and fornitore_id = v_fornitore_id
-        and unita_misura_id = new.unita_misura_id;
-
-    if v_fattore is null then
-      raise exception 'Nessuna conversione definita per questa materia prima, questo fornitore e questa unita'' di misura';
-    end if;
-
+  elsif new.unita_misura_id = v_um1 and v_unita_magazzino = v_um2 then
     new.quantita := new.quantita_originale * v_fattore;
+  elsif new.unita_misura_id = v_um2 and v_unita_magazzino = v_um1 then
+    new.quantita := new.quantita_originale / v_fattore;
+  else
+    raise exception 'Unita'' di misura non valida per questa materia prima';
   end if;
 
   return new;
@@ -347,7 +345,7 @@ create index on movimenti_materie_prime (causale_id);
 create index on movimenti_materie_prime (ordine_produzione_id);
 create index on movimenti_materie_prime (utente_id);
 create index on movimenti_materie_prime (unita_misura_id);
-create index on materie_prime_conversioni (fornitore_id);
+create index on materie_prime (fornitore_id);
 create index on lotti_prodotti_finiti (prodotto_finito_id);
 create index on lotti_prodotti_finiti (ordine_produzione_id);
 create index on ordini_vendita (cliente_id);
@@ -419,7 +417,7 @@ begin
     values (
       v_lotto_id,
       v_causale_id,
-      (select mp.unita_misura_base_id from lotti_materie_prime l join materie_prime mp on mp.id = l.materia_prima_id where l.id = v_lotto_id),
+      (select mp.unita_magazzino_id from lotti_materie_prime l join materie_prime mp on mp.id = l.materia_prima_id where l.id = v_lotto_id),
       (v_riga ->> 'quantita')::numeric,
       p_ordine_produzione_id,
       auth.uid()

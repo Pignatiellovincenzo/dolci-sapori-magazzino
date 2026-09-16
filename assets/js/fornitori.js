@@ -12,6 +12,7 @@ const submitBtn = document.getElementById('submit-btn');
 const cancelBtn = document.getElementById('cancel-btn');
 const tbody = document.getElementById('fornitori-tbody');
 const emptyState = document.getElementById('empty-state');
+const mostraDisattivatiCheck = document.getElementById('mostra-disattivati-check');
 
 async function init() {
   utenteCorrente = await requireAuth(['direttore', 'responsabile_produzione']);
@@ -21,10 +22,11 @@ async function init() {
 }
 
 async function caricaFornitori() {
-  const { data, error } = await supabaseClient
-    .from('fornitori')
-    .select('id, nome, telefono, email, note')
-    .order('nome');
+  let query = supabaseClient.from('fornitori').select('id, nome, telefono, email, note, attivo').order('nome');
+  if (!mostraDisattivatiCheck.checked) {
+    query = query.eq('attivo', true);
+  }
+  const { data, error } = await query;
 
   if (error) {
     errorMessage.textContent = 'Errore nel caricamento fornitori: ' + error.message;
@@ -36,6 +38,7 @@ async function caricaFornitori() {
 
   for (const fornitore of data) {
     const tr = document.createElement('tr');
+    if (!fornitore.attivo) tr.style.opacity = '0.55';
 
     const tdNome = document.createElement('td');
     tdNome.textContent = fornitore.nome;
@@ -53,6 +56,10 @@ async function caricaFornitori() {
     tdNote.textContent = fornitore.note || '—';
     tr.appendChild(tdNote);
 
+    const tdStato = document.createElement('td');
+    tdStato.textContent = fornitore.attivo ? 'Attivo' : 'Disattivato';
+    tr.appendChild(tdStato);
+
     const tdActions = document.createElement('td');
     tdActions.className = 'actions';
 
@@ -64,12 +71,21 @@ async function caricaFornitori() {
     tdActions.appendChild(editBtn);
 
     if (utenteCorrente.ruolo === 'direttore') {
-      const deleteBtn = document.createElement('button');
-      deleteBtn.type = 'button';
-      deleteBtn.className = 'btn-danger';
-      deleteBtn.textContent = 'Elimina';
-      deleteBtn.addEventListener('click', () => eliminaFornitore(fornitore));
-      tdActions.appendChild(deleteBtn);
+      if (fornitore.attivo) {
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'btn-danger';
+        deleteBtn.textContent = 'Elimina';
+        deleteBtn.addEventListener('click', () => eliminaFornitore(fornitore));
+        tdActions.appendChild(deleteBtn);
+      } else {
+        const riattivaBtn = document.createElement('button');
+        riattivaBtn.type = 'button';
+        riattivaBtn.className = 'btn-secondary';
+        riattivaBtn.textContent = 'Riattiva';
+        riattivaBtn.addEventListener('click', () => riattivaFornitore(fornitore));
+        tdActions.appendChild(riattivaBtn);
+      }
     }
 
     tr.appendChild(tdActions);
@@ -104,10 +120,25 @@ async function eliminaFornitore(fornitore) {
   const { error } = await supabaseClient.from('fornitori').delete().eq('id', fornitore.id);
 
   if (error) {
+    if (error.code === '23503') {
+      if (confirm(`Non puoi eliminare "${fornitore.nome}" perché è già collegato ad altri dati (lotti, conversioni...). Vuoi disattivarlo invece? Non comparirà più tra le scelte disponibili, ma la sua storia resterà intatta.`)) {
+        await riattivaFornitore(fornitore, false);
+      }
+      return;
+    }
     alert('Errore durante l\'eliminazione: ' + error.message);
     return;
   }
 
+  await caricaFornitori();
+}
+
+async function riattivaFornitore(fornitore, attivo = true) {
+  const { error } = await supabaseClient.from('fornitori').update({ attivo }).eq('id', fornitore.id);
+  if (error) {
+    alert('Errore: ' + error.message);
+    return;
+  }
   await caricaFornitori();
 }
 
@@ -142,5 +173,6 @@ form.addEventListener('submit', async (event) => {
 });
 
 cancelBtn.addEventListener('click', annullaModifica);
+mostraDisattivatiCheck.addEventListener('change', caricaFornitori);
 
 init();

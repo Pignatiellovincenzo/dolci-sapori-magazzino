@@ -15,6 +15,13 @@
   box-sizing: border-box;
 }
 
+/* Alcune classi (.form-row, .checkbox-grid, .btn-row...) impostano un
+   display esplicito che altrimenti vince sulla regola predefinita di
+   [hidden], lasciando visibili elementi che dovrebbero sparire. */
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   min-height: 100vh;

@@ -63,12 +63,6 @@ create policy "scrittura_direttore" on materie_prime for insert with check (ruol
 create policy "modifica_direttore" on materie_prime for update using (ruolo_utente() = 'direttore');
 create policy "eliminazione_direttore" on materie_prime for delete using (ruolo_utente() = 'direttore');
 
-alter table materie_prime_conversioni enable row level security;
-create policy "lettura_autenticati" on materie_prime_conversioni for select using (auth.role() = 'authenticated');
-create policy "scrittura_direttore" on materie_prime_conversioni for insert with check (ruolo_utente() = 'direttore');
-create policy "modifica_direttore" on materie_prime_conversioni for update using (ruolo_utente() = 'direttore');
-create policy "eliminazione_direttore" on materie_prime_conversioni for delete using (ruolo_utente() = 'direttore');
-
 alter table allergeni enable row level security;
 create policy "lettura_autenticati" on allergeni for select using (auth.role() = 'authenticated');
 create policy "scrittura_direttore" on allergeni for insert with check (ruolo_utente() = 'direttore');

@@ -47,9 +47,28 @@ async function caricaUnitaMisura() {
 }
 
 async function caricaMateriePrime() {
-  const { data, error } = await supabaseClient.from('materie_prime').select('id, nome, unita_misura_base_id').order('nome');
+  const { data, error } = await supabaseClient
+    .from('materie_prime')
+    .select('id, nome, unita_misura_1_id, unita_misura_2_id, fattore_conversione, unita_magazzino_id')
+    .order('nome');
   if (error) { errorMessage.textContent = 'Errore materie prime: ' + error.message; return; }
   materiePrime = data;
+}
+
+// Il magazzino (e le giacenze) ragionano sempre nell'unita' magazzino della
+// materia prima; la ricetta puo' esprimere l'ingrediente nell'altra unita'
+// (tipicamente per precisione), quindi va convertito prima di confrontarlo
+// con la giacenza.
+function convertiInUnitaMagazzino(materiaPrimaId, quantita, unitaMisuraId) {
+  const m = materiePrime.find(x => x.id === materiaPrimaId);
+  if (!m || unitaMisuraId === m.unita_magazzino_id) return quantita;
+  if (unitaMisuraId === m.unita_misura_1_id && m.unita_magazzino_id === m.unita_misura_2_id) {
+    return quantita * m.fattore_conversione;
+  }
+  if (unitaMisuraId === m.unita_misura_2_id && m.unita_magazzino_id === m.unita_misura_1_id) {
+    return quantita / m.fattore_conversione;
+  }
+  return quantita;
 }
 
 async function caricaProdottiConRicetta() {
@@ -210,7 +229,10 @@ async function calcolaFabbisogno(ingredienti) {
   const sezioni = [];
 
   for (const ing of ingredienti) {
-    const necessario = ing.quantita * numeroBatch;
+    const necessarioRicetta = ing.quantita * numeroBatch;
+    const necessario = convertiInUnitaMagazzino(ing.materia_prima_id, necessarioRicetta, ing.unita_misura_id);
+    const materia = materiePrime.find(m => m.id === ing.materia_prima_id);
+    const unitaMagazzinoId = materia ? materia.unita_magazzino_id : ing.unita_misura_id;
 
     const { data: lotti } = await supabaseClient
       .from('lotti_materie_prime')
@@ -240,16 +262,24 @@ async function calcolaFabbisogno(ingredienti) {
       daAllocare -= presa;
     }
 
-    sezioni.push({ materiaPrimaId: ing.materia_prima_id, unitaMisuraId: ing.unita_misura_id, necessario, allocazioni, mancante: daAllocare });
+    sezioni.push({
+      materiaPrimaId: ing.materia_prima_id,
+      unitaRicettaId: ing.unita_misura_id,
+      necessarioRicetta,
+      unitaMagazzinoId,
+      necessario,
+      allocazioni,
+      mancante: daAllocare,
+    });
   }
 
   container.innerHTML = sezioni.map((sez, sezIdx) => `
     <div class="panel" style="background: var(--bg); margin-top:16px;">
-      <h2 style="font-size:0.95rem;">${nomeMateriaPrima(sez.materiaPrimaId)} — necessario: ${sez.necessario} ${nomeUnita(sez.unitaMisuraId)}</h2>
+      <h2 style="font-size:0.95rem;">${nomeMateriaPrima(sez.materiaPrimaId)} — necessario: ${sez.necessarioRicetta} ${nomeUnita(sez.unitaRicettaId)}${sez.unitaRicettaId !== sez.unitaMagazzinoId ? ` (${sez.necessario} ${nomeUnita(sez.unitaMagazzinoId)})` : ''}</h2>
       ${sez.allocazioni.length === 0 ? '<p class="empty-state">Nessun lotto disponibile.</p>' : `
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Lotto</th><th>Scadenza</th><th>Disponibile</th><th>Da prelevare</th></tr></thead>
+            <thead><tr><th>Lotto</th><th>Scadenza</th><th>Disponibile (${nomeUnita(sez.unitaMagazzinoId)})</th><th>Da prelevare</th></tr></thead>
             <tbody>
               ${sez.allocazioni.map((a, aIdx) => `
                 <tr>
@@ -263,7 +293,7 @@ async function calcolaFabbisogno(ingredienti) {
           </table>
         </div>
       `}
-      ${sez.mancante > 0 ? `<p class="error">Attenzione: mancano ${sez.mancante} ${nomeUnita(sez.unitaMisuraId)} rispetto al fabbisogno.</p>` : ''}
+      ${sez.mancante > 0 ? `<p class="error">Attenzione: mancano ${sez.mancante} ${nomeUnita(sez.unitaMagazzinoId)} rispetto al fabbisogno.</p>` : ''}
     </div>
   `).join('') + `<div class="btn-row" style="margin-top:16px;"><button type="button" id="conferma-prelievo-btn">Conferma prelievo</button></div>`;
 

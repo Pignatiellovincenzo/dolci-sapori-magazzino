@@ -16,6 +16,7 @@ const submitBtn = document.getElementById('submit-btn');
 const cancelBtn = document.getElementById('cancel-btn');
 const tbody = document.getElementById('prodotti-tbody');
 const emptyState = document.getElementById('empty-state');
+const mostraDisattivatiCheck = document.getElementById('mostra-disattivati-check');
 
 const ricettaPanel = document.getElementById('ricetta-panel');
 const ricettaTitle = document.getElementById('ricetta-title');
@@ -49,7 +50,7 @@ async function caricaUnitaMisura() {
 }
 
 async function caricaMateriePrime() {
-  const { data, error } = await supabaseClient.from('materie_prime').select('id, nome').order('nome');
+  const { data, error } = await supabaseClient.from('materie_prime').select('id, nome, attivo').order('nome');
   if (error) {
     errorMessage.textContent = 'Errore caricamento materie prime: ' + error.message;
     return;
@@ -82,10 +83,14 @@ function nomeAllergene(id) {
 }
 
 async function caricaProdotti() {
-  const { data, error } = await supabaseClient
+  let query = supabaseClient
     .from('prodotti_finiti')
-    .select('id, nome, unita_misura_base_id, giorni_preavviso_scadenza, note')
+    .select('id, nome, unita_misura_base_id, giorni_preavviso_scadenza, note, attivo')
     .order('nome');
+  if (!mostraDisattivatiCheck.checked) {
+    query = query.eq('attivo', true);
+  }
+  const { data, error } = await query;
 
   if (error) {
     errorMessage.textContent = 'Errore nel caricamento prodotti finiti: ' + error.message;
@@ -97,6 +102,7 @@ async function caricaProdotti() {
 
   for (const prodotto of data) {
     const tr = document.createElement('tr');
+    if (!prodotto.attivo) tr.style.opacity = '0.55';
 
     const tdNome = document.createElement('td');
     tdNome.textContent = prodotto.nome;
@@ -109,6 +115,10 @@ async function caricaProdotti() {
     const tdPreavviso = document.createElement('td');
     tdPreavviso.textContent = prodotto.giorni_preavviso_scadenza;
     tr.appendChild(tdPreavviso);
+
+    const tdStato = document.createElement('td');
+    tdStato.textContent = prodotto.attivo ? 'Attivo' : 'Disattivato';
+    tr.appendChild(tdStato);
 
     const tdActions = document.createElement('td');
     tdActions.className = 'actions';
@@ -128,12 +138,21 @@ async function caricaProdotti() {
       editBtn.addEventListener('click', () => avviaModifica(prodotto));
       tdActions.appendChild(editBtn);
 
-      const deleteBtn = document.createElement('button');
-      deleteBtn.type = 'button';
-      deleteBtn.className = 'btn-danger';
-      deleteBtn.textContent = 'Elimina';
-      deleteBtn.addEventListener('click', () => eliminaProdotto(prodotto));
-      tdActions.appendChild(deleteBtn);
+      if (prodotto.attivo) {
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'btn-danger';
+        deleteBtn.textContent = 'Elimina';
+        deleteBtn.addEventListener('click', () => eliminaProdotto(prodotto));
+        tdActions.appendChild(deleteBtn);
+      } else {
+        const riattivaBtn = document.createElement('button');
+        riattivaBtn.type = 'button';
+        riattivaBtn.className = 'btn-secondary';
+        riattivaBtn.textContent = 'Riattiva';
+        riattivaBtn.addEventListener('click', () => impostaAttivo(prodotto, true));
+        tdActions.appendChild(riattivaBtn);
+      }
     }
 
     tr.appendChild(tdActions);
@@ -169,10 +188,25 @@ async function eliminaProdotto(prodotto) {
   const { error } = await supabaseClient.from('prodotti_finiti').delete().eq('id', prodotto.id);
 
   if (error) {
+    if (error.code === '23503') {
+      if (confirm(`Non puoi eliminare "${prodotto.nome}" perché è già collegato ad altri dati (ricette, ordini, lotti...). Vuoi disattivarlo invece? Non comparirà più tra le scelte disponibili, ma la sua storia resterà intatta.`)) {
+        await impostaAttivo(prodotto, false);
+      }
+      return;
+    }
     alert('Errore durante l\'eliminazione: ' + error.message);
     return;
   }
 
+  await caricaProdotti();
+}
+
+async function impostaAttivo(prodotto, attivo) {
+  const { error } = await supabaseClient.from('prodotti_finiti').update({ attivo }).eq('id', prodotto.id);
+  if (error) {
+    alert('Errore: ' + error.message);
+    return;
+  }
   await caricaProdotti();
 }
 
@@ -295,7 +329,7 @@ async function renderRicetta() {
       <div class="form-row" style="margin-top:16px;">
         <div>
           <label for="ingrediente-materia">Materia prima</label>
-          <select id="ingrediente-materia">${materiePrime.map(m => `<option value="${m.id}">${m.nome}</option>`).join('')}</select>
+          <select id="ingrediente-materia">${materiePrime.filter(m => m.attivo).map(m => `<option value="${m.id}">${m.nome}</option>`).join('')}</select>
         </div>
         <div>
           <label for="ingrediente-unita">Unità</label>
@@ -436,5 +470,7 @@ document.getElementById('chiudi-ricetta-btn').addEventListener('click', () => {
   ricettaPanel.hidden = true;
   prodottoInModifica = null;
 });
+
+mostraDisattivatiCheck.addEventListener('change', caricaProdotti);
 
 init();

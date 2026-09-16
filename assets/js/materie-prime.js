@@ -2,13 +2,20 @@ let utenteCorrente = null;
 let unitaMisura = [];
 let allergeni = [];
 let fornitori = [];
-let materiaInModifica = null; // per il pannello conversioni
 
 const form = document.getElementById('materia-form');
 const idInput = document.getElementById('materia-id');
 const nomeInput = document.getElementById('nome');
-const unitaBaseSelect = document.getElementById('unita-base');
+const fornitoreSelect = document.getElementById('fornitore-select');
+const unita1Select = document.getElementById('unita1-select');
+const unita2Select = document.getElementById('unita2-select');
+const fattoreRow = document.getElementById('fattore-row');
+const fattoreLabel = document.getElementById('fattore-label');
+const fattoreInput = document.getElementById('fattore-input');
+const unitaAcquistoSelect = document.getElementById('unita-acquisto-select');
+const unitaMagazzinoSelect = document.getElementById('unita-magazzino-select');
 const giorniPreavvisoInput = document.getElementById('giorni-preavviso');
+const scortaMinimaInput = document.getElementById('scorta-minima');
 const noteInput = document.getElementById('note');
 const allergeniGrid = document.getElementById('allergeni-grid');
 const errorMessage = document.getElementById('error-message');
@@ -17,14 +24,7 @@ const submitBtn = document.getElementById('submit-btn');
 const cancelBtn = document.getElementById('cancel-btn');
 const tbody = document.getElementById('materie-tbody');
 const emptyState = document.getElementById('empty-state');
-
-const conversioniPanel = document.getElementById('conversioni-panel');
-const conversioniTitle = document.getElementById('conversioni-title');
-const conversioniTbody = document.getElementById('conversioni-tbody');
-const conversioneFornitoreSelect = document.getElementById('conversione-fornitore');
-const conversioneUnitaSelect = document.getElementById('conversione-unita');
-const conversioneFattoreInput = document.getElementById('conversione-fattore');
-const conversionePredefinitaCheck = document.getElementById('conversione-predefinita');
+const mostraDisattivatiCheck = document.getElementById('mostra-disattivati-check');
 
 async function init() {
   utenteCorrente = await requireAuth(['direttore', 'responsabile_produzione']);
@@ -40,17 +40,19 @@ async function init() {
   await caricaUnitaMisura();
   await caricaAllergeni();
   await caricaFornitori();
+  aggiornaSelectAcquistoMagazzino();
   await caricaMaterie();
 }
 
 async function caricaFornitori() {
-  const { data, error } = await supabaseClient.from('fornitori').select('id, nome').order('nome');
+  const { data, error } = await supabaseClient.from('fornitori').select('id, nome, attivo').order('nome');
   if (error) {
     errorMessage.textContent = 'Errore caricamento fornitori: ' + error.message;
     return;
   }
   fornitori = data;
-  conversioneFornitoreSelect.innerHTML = data.map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
+  fornitoreSelect.innerHTML = '<option value="">— nessuno —</option>' +
+    data.filter(f => f.attivo).map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
 }
 
 function nomeFornitore(id) {
@@ -65,8 +67,9 @@ async function caricaUnitaMisura() {
     return;
   }
   unitaMisura = data;
-  unitaBaseSelect.innerHTML = data.map(u => `<option value="${u.id}">${u.nome} (${u.codice})</option>`).join('');
-  conversioneUnitaSelect.innerHTML = data.map(u => `<option value="${u.id}">${u.nome} (${u.codice})</option>`).join('');
+  const opzioni = data.map(u => `<option value="${u.id}">${u.nome} (${u.codice})</option>`).join('');
+  unita1Select.innerHTML = opzioni;
+  unita2Select.innerHTML = '<option value="">— nessuna —</option>' + opzioni;
 }
 
 async function caricaAllergeni() {
@@ -89,11 +92,51 @@ function nomeUnita(id) {
   return u ? `${u.nome} (${u.codice})` : '—';
 }
 
+// Le selezioni "acquisto" e "magazzino" possono essere solo UM1 o UM2 (se
+// presente): le ricostruisco ogni volta che una delle due unità cambia.
+function aggiornaSelectAcquistoMagazzino() {
+  const um1 = Number(unita1Select.value) || null;
+  const um2 = unita2Select.value ? Number(unita2Select.value) : null;
+  const opzioni = [um1, um2].filter(Boolean);
+
+  const acquistoPrec = unitaAcquistoSelect.value;
+  const magazzinoPrec = unitaMagazzinoSelect.value;
+
+  const html = opzioni.map(id => `<option value="${id}">${nomeUnita(id)}</option>`).join('');
+  unitaAcquistoSelect.innerHTML = html;
+  unitaMagazzinoSelect.innerHTML = html;
+
+  if (opzioni.includes(Number(acquistoPrec))) unitaAcquistoSelect.value = acquistoPrec;
+  if (opzioni.includes(Number(magazzinoPrec))) unitaMagazzinoSelect.value = magazzinoPrec;
+
+  fattoreRow.hidden = !um2;
+  if (um2 && um1) {
+    fattoreLabel.textContent = `Conversione: 1 ${nomeUnita(um1)} = quanti/e ${nomeUnita(um2)}`;
+  }
+  if (!um2) {
+    fattoreInput.value = '';
+  }
+}
+
+unita1Select.addEventListener('change', aggiornaSelectAcquistoMagazzino);
+unita2Select.addEventListener('change', aggiornaSelectAcquistoMagazzino);
+
+function descrizioneUnita(materia) {
+  if (materia.unita_misura_2_id) {
+    return `${nomeUnita(materia.unita_misura_1_id)} = ${materia.fattore_conversione} ${nomeUnita(materia.unita_misura_2_id)}`;
+  }
+  return nomeUnita(materia.unita_misura_1_id);
+}
+
 async function caricaMaterie() {
-  const { data, error } = await supabaseClient
+  let query = supabaseClient
     .from('materie_prime')
-    .select('id, nome, unita_misura_base_id, giorni_preavviso_scadenza, note, materie_prime_allergeni(allergene_id, allergeni(nome))')
+    .select('id, nome, unita_misura_1_id, unita_misura_2_id, fattore_conversione, unita_acquisto_id, unita_magazzino_id, fornitore_id, giorni_preavviso_scadenza, scorta_minima, note, attivo, materie_prime_allergeni(allergene_id, allergeni(nome))')
     .order('nome');
+  if (!mostraDisattivatiCheck.checked) {
+    query = query.eq('attivo', true);
+  }
+  const { data, error } = await query;
 
   if (error) {
     errorMessage.textContent = 'Errore nel caricamento materie prime: ' + error.message;
@@ -105,33 +148,35 @@ async function caricaMaterie() {
 
   for (const materia of data) {
     const tr = document.createElement('tr');
+    if (!materia.attivo) tr.style.opacity = '0.55';
 
     const tdNome = document.createElement('td');
     tdNome.textContent = materia.nome;
     tr.appendChild(tdNome);
 
     const tdUnita = document.createElement('td');
-    tdUnita.textContent = nomeUnita(materia.unita_misura_base_id);
+    tdUnita.textContent = descrizioneUnita(materia);
     tr.appendChild(tdUnita);
 
-    const tdPreavviso = document.createElement('td');
-    tdPreavviso.textContent = materia.giorni_preavviso_scadenza;
-    tr.appendChild(tdPreavviso);
+    const tdFornitore = document.createElement('td');
+    tdFornitore.textContent = materia.fornitore_id ? nomeFornitore(materia.fornitore_id) : '—';
+    tr.appendChild(tdFornitore);
+
+    const tdScorta = document.createElement('td');
+    tdScorta.textContent = `${materia.scorta_minima} ${nomeUnita(materia.unita_magazzino_id)}`;
+    tr.appendChild(tdScorta);
 
     const tdAllergeni = document.createElement('td');
     const nomiAllergeni = (materia.materie_prime_allergeni || []).map(a => a.allergeni.nome);
     tdAllergeni.textContent = nomiAllergeni.length ? nomiAllergeni.join(', ') : '—';
     tr.appendChild(tdAllergeni);
 
+    const tdStato = document.createElement('td');
+    tdStato.textContent = materia.attivo ? 'Attiva' : 'Disattivata';
+    tr.appendChild(tdStato);
+
     const tdActions = document.createElement('td');
     tdActions.className = 'actions';
-
-    const convBtn = document.createElement('button');
-    convBtn.type = 'button';
-    convBtn.className = 'btn-secondary';
-    convBtn.textContent = 'Conversioni';
-    convBtn.addEventListener('click', () => apriConversioni(materia));
-    tdActions.appendChild(convBtn);
 
     if (utenteCorrente.ruolo === 'direttore') {
       const editBtn = document.createElement('button');
@@ -141,12 +186,21 @@ async function caricaMaterie() {
       editBtn.addEventListener('click', () => avviaModifica(materia));
       tdActions.appendChild(editBtn);
 
-      const deleteBtn = document.createElement('button');
-      deleteBtn.type = 'button';
-      deleteBtn.className = 'btn-danger';
-      deleteBtn.textContent = 'Elimina';
-      deleteBtn.addEventListener('click', () => eliminaMateria(materia));
-      tdActions.appendChild(deleteBtn);
+      if (materia.attivo) {
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'btn-danger';
+        deleteBtn.textContent = 'Elimina';
+        deleteBtn.addEventListener('click', () => eliminaMateria(materia));
+        tdActions.appendChild(deleteBtn);
+      } else {
+        const riattivaBtn = document.createElement('button');
+        riattivaBtn.type = 'button';
+        riattivaBtn.className = 'btn-secondary';
+        riattivaBtn.textContent = 'Riattiva';
+        riattivaBtn.addEventListener('click', () => impostaAttiva(materia, true));
+        tdActions.appendChild(riattivaBtn);
+      }
     }
 
     tr.appendChild(tdActions);
@@ -157,8 +211,15 @@ async function caricaMaterie() {
 function avviaModifica(materia) {
   idInput.value = materia.id;
   nomeInput.value = materia.nome;
-  unitaBaseSelect.value = materia.unita_misura_base_id;
+  fornitoreSelect.value = materia.fornitore_id || '';
+  unita1Select.value = materia.unita_misura_1_id;
+  unita2Select.value = materia.unita_misura_2_id || '';
+  aggiornaSelectAcquistoMagazzino();
+  unitaAcquistoSelect.value = materia.unita_acquisto_id;
+  unitaMagazzinoSelect.value = materia.unita_magazzino_id;
+  fattoreInput.value = materia.fattore_conversione || '';
   giorniPreavvisoInput.value = materia.giorni_preavviso_scadenza;
+  scortaMinimaInput.value = materia.scorta_minima;
   noteInput.value = materia.note || '';
 
   const idAllergeniAttivi = new Set((materia.materie_prime_allergeni || []).map(a => a.allergene_id));
@@ -176,6 +237,7 @@ function annullaModifica() {
   form.reset();
   idInput.value = '';
   document.querySelectorAll('.allergene-check').forEach(chk => { chk.checked = false; });
+  aggiornaSelectAcquistoMagazzino();
   formTitle.textContent = 'Nuova materia prima';
   submitBtn.textContent = 'Salva';
   cancelBtn.hidden = true;
@@ -188,10 +250,25 @@ async function eliminaMateria(materia) {
   const { error } = await supabaseClient.from('materie_prime').delete().eq('id', materia.id);
 
   if (error) {
+    if (error.code === '23503') {
+      if (confirm(`Non puoi eliminare "${materia.nome}" perché è già collegata ad altri dati (lotti, ricette...). Vuoi disattivarla invece? Non comparirà più tra le scelte disponibili, ma la sua storia resterà intatta.`)) {
+        await impostaAttiva(materia, false);
+      }
+      return;
+    }
     alert('Errore durante l\'eliminazione: ' + error.message);
     return;
   }
 
+  await caricaMaterie();
+}
+
+async function impostaAttiva(materia, attivo) {
+  const { error } = await supabaseClient.from('materie_prime').update({ attivo }).eq('id', materia.id);
+  if (error) {
+    alert('Errore: ' + error.message);
+    return;
+  }
   await caricaMaterie();
 }
 
@@ -200,10 +277,25 @@ form.addEventListener('submit', async (event) => {
   errorMessage.textContent = '';
   submitBtn.disabled = true;
 
+  const um2 = unita2Select.value ? Number(unita2Select.value) : null;
+  const fattore = um2 ? Number(fattoreInput.value) : null;
+
+  if (um2 && (!fattore || fattore <= 0)) {
+    errorMessage.textContent = 'Inserisci un fattore di conversione maggiore di zero.';
+    submitBtn.disabled = false;
+    return;
+  }
+
   const valori = {
     nome: nomeInput.value.trim(),
-    unita_misura_base_id: Number(unitaBaseSelect.value),
+    fornitore_id: fornitoreSelect.value ? Number(fornitoreSelect.value) : null,
+    unita_misura_1_id: Number(unita1Select.value),
+    unita_misura_2_id: um2,
+    fattore_conversione: fattore,
+    unita_acquisto_id: Number(unitaAcquistoSelect.value),
+    unita_magazzino_id: Number(unitaMagazzinoSelect.value),
     giorni_preavviso_scadenza: Number(giorniPreavvisoInput.value) || 0,
+    scorta_minima: Number(scortaMinimaInput.value) || 0,
     note: noteInput.value.trim() || null,
   };
 
@@ -246,109 +338,6 @@ form.addEventListener('submit', async (event) => {
 });
 
 cancelBtn.addEventListener('click', annullaModifica);
-
-// ---- Conversioni unità di misura ----
-
-async function apriConversioni(materia) {
-  materiaInModifica = materia;
-  conversioniTitle.textContent = `Conversioni — ${materia.nome}`;
-  conversioniPanel.hidden = false;
-  await caricaConversioni();
-  conversioniPanel.scrollIntoView({ behavior: 'smooth' });
-}
-
-async function caricaConversioni() {
-  const { data, error } = await supabaseClient
-    .from('materie_prime_conversioni')
-    .select('id, fornitore_id, unita_misura_id, fattore_conversione, predefinita_per_acquisto')
-    .eq('materia_prima_id', materiaInModifica.id)
-    .order('id');
-
-  if (error) {
-    errorMessage.textContent = 'Errore caricamento conversioni: ' + error.message;
-    return;
-  }
-
-  conversioniTbody.innerHTML = '';
-  for (const conv of data) {
-    const tr = document.createElement('tr');
-
-    const tdFornitore = document.createElement('td');
-    tdFornitore.textContent = nomeFornitore(conv.fornitore_id);
-    tr.appendChild(tdFornitore);
-
-    const tdUnita = document.createElement('td');
-    tdUnita.textContent = nomeUnita(conv.unita_misura_id);
-    tr.appendChild(tdUnita);
-
-    const tdFattore = document.createElement('td');
-    tdFattore.textContent = `${conv.fattore_conversione} ${nomeUnita(materiaInModifica.unita_misura_base_id)}`;
-    tr.appendChild(tdFattore);
-
-    const tdPredefinita = document.createElement('td');
-    tdPredefinita.textContent = conv.predefinita_per_acquisto ? 'Sì' : '—';
-    tr.appendChild(tdPredefinita);
-
-    const tdActions = document.createElement('td');
-    tdActions.className = 'actions';
-    if (utenteCorrente.ruolo === 'direttore') {
-      const delBtn = document.createElement('button');
-      delBtn.type = 'button';
-      delBtn.className = 'btn-danger';
-      delBtn.textContent = 'Elimina';
-      delBtn.addEventListener('click', async () => {
-        await supabaseClient.from('materie_prime_conversioni').delete().eq('id', conv.id);
-        await caricaConversioni();
-      });
-      tdActions.appendChild(delBtn);
-    }
-    tr.appendChild(tdActions);
-
-    conversioniTbody.appendChild(tr);
-  }
-}
-
-document.getElementById('aggiungi-conversione-btn').addEventListener('click', async () => {
-  const fattore = Number(conversioneFattoreInput.value);
-  if (!fattore || fattore <= 0) {
-    alert('Inserisci un fattore di conversione maggiore di zero.');
-    return;
-  }
-
-  const fornitoreId = Number(conversioneFornitoreSelect.value);
-  const predefinita = conversionePredefinitaCheck.checked;
-
-  if (predefinita) {
-    // Solo un'unità predefinita per materia prima + fornitore: tolgo quella
-    // eventualmente già impostata prima di inserirne una nuova.
-    await supabaseClient
-      .from('materie_prime_conversioni')
-      .update({ predefinita_per_acquisto: false })
-      .eq('materia_prima_id', materiaInModifica.id)
-      .eq('fornitore_id', fornitoreId);
-  }
-
-  const { error } = await supabaseClient.from('materie_prime_conversioni').insert({
-    materia_prima_id: materiaInModifica.id,
-    fornitore_id: fornitoreId,
-    unita_misura_id: Number(conversioneUnitaSelect.value),
-    fattore_conversione: fattore,
-    predefinita_per_acquisto: predefinita,
-  });
-
-  if (error) {
-    alert('Errore: ' + error.message);
-    return;
-  }
-
-  conversioneFattoreInput.value = '';
-  conversionePredefinitaCheck.checked = false;
-  await caricaConversioni();
-});
-
-document.getElementById('chiudi-conversioni-btn').addEventListener('click', () => {
-  conversioniPanel.hidden = true;
-  materiaInModifica = null;
-});
+mostraDisattivatiCheck.addEventListener('change', caricaMaterie);
 
 init();

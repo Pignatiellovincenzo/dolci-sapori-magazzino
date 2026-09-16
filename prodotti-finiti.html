@@ -53,9 +53,13 @@
 
     <section class="panel">
       <h2>Elenco prodotti finiti</h2>
+      <label style="display:flex; align-items:center; gap:6px; font-weight:normal;">
+        <input type="checkbox" id="mostra-disattivati-check" style="width:auto; margin:0;">
+        Mostra anche i disattivati
+      </label>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Nome</th><th>Unità base</th><th>Preavviso scad.</th><th></th></tr></thead>
+          <thead><tr><th>Nome</th><th>Unità base</th><th>Preavviso scad.</th><th>Stato</th><th></th></tr></thead>
           <tbody id="prodotti-tbody"></tbody>
         </table>
       </div>

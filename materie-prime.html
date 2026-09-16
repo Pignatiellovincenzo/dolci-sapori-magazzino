@@ -30,20 +30,54 @@
             <input type="text" id="nome" required>
           </div>
           <div>
-            <label for="unita-base">Unità di misura base *</label>
-            <select id="unita-base" required></select>
+            <label for="fornitore-select">Fornitore</label>
+            <select id="fornitore-select"><option value="">— nessuno —</option></select>
           </div>
         </div>
+
+        <div class="form-row">
+          <div>
+            <label for="unita1-select">Unità di misura 1 *</label>
+            <select id="unita1-select" required></select>
+          </div>
+          <div>
+            <label for="unita2-select">Unità di misura 2 (facoltativa)</label>
+            <select id="unita2-select"><option value="">— nessuna —</option></select>
+          </div>
+        </div>
+        <div class="form-row" id="fattore-row" hidden>
+          <div>
+            <label id="fattore-label" for="fattore-input">Conversione</label>
+            <input type="number" id="fattore-input" min="0" step="any">
+          </div>
+          <div></div>
+        </div>
+        <div class="form-row">
+          <div>
+            <label for="unita-acquisto-select">Unità da mostrare in acquisto/carico</label>
+            <select id="unita-acquisto-select"></select>
+          </div>
+          <div>
+            <label for="unita-magazzino-select">Unità da mostrare in giacenza</label>
+            <select id="unita-magazzino-select"></select>
+          </div>
+        </div>
+
         <div class="form-row">
           <div>
             <label for="giorni-preavviso">Giorni di preavviso scadenza</label>
             <input type="number" id="giorni-preavviso" min="0" value="0">
           </div>
-          <div></div>
+          <div>
+            <label for="scorta-minima">Scorta minima (nell'unità magazzino)</label>
+            <input type="number" id="scorta-minima" min="0" step="any" value="0">
+          </div>
         </div>
 
-        <label>Allergeni</label>
-        <div class="checkbox-grid" id="allergeni-grid"></div>
+        <details>
+          <summary>Allergeni</summary>
+          <div class="checkbox-grid" id="allergeni-grid"></div>
+        </details>
 
         <label for="note">Note</label>
         <textarea id="note" rows="2"></textarea>
@@ -58,53 +92,19 @@
 
     <section class="panel">
       <h2>Elenco materie prime</h2>
+      <label style="display:flex; align-items:center; gap:6px; font-weight:normal;">
+        <input type="checkbox" id="mostra-disattivati-check" style="width:auto; margin:0;">
+        Mostra anche le disattivate
+      </label>
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>Nome</th><th>Unità base</th><th>Preavviso scad.</th><th>Allergeni</th><th></th></tr>
+            <tr><th>Nome</th><th>Unità</th><th>Fornitore</th><th>Scorta min.</th><th>Allergeni</th><th>Stato</th><th></th></tr>
           </thead>
           <tbody id="materie-tbody"></tbody>
         </table>
       </div>
       <p class="empty-state" id="empty-state" hidden>Nessuna materia prima inserita.</p>
-    </section>
-
-    <section class="panel" id="conversioni-panel" hidden>
-      <h2 id="conversioni-title">Conversioni unità di misura</h2>
-      <p class="empty-state" style="margin-top:-8px;">Facoltative: senza nessuna riga qui, questa materia prima si registra sempre nella sua unità base.</p>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Fornitore</th><th>Unità</th><th>1 unità = quanti/e (unità base)</th><th>Predefinita acquisto</th><th></th></tr></thead>
-          <tbody id="conversioni-tbody"></tbody>
-        </table>
-      </div>
-      <div class="form-row" style="margin-top:16px;">
-        <div>
-          <label for="conversione-fornitore">Fornitore</label>
-          <select id="conversione-fornitore"></select>
-        </div>
-        <div>
-          <label for="conversione-unita">Unità</label>
-          <select id="conversione-unita"></select>
-        </div>
-      </div>
-      <div class="form-row">
-        <div>
-          <label for="conversione-fattore">Fattore di conversione (1 unità = quanti/e unità base)</label>
-          <input type="number" id="conversione-fattore" min="0" step="any">
-        </div>
-        <div>
-          <label>&nbsp;</label>
-          <label style="display:flex; align-items:center; gap:6px; font-weight:normal; color: var(--text);">
-            <input type="checkbox" id="conversione-predefinita" style="width:auto; margin:0;">
-            Predefinita per l'acquisto da questo fornitore
-          </label>
-        </div>
-      </div>
-      <div class="btn-row">
-        <button type="button" id="aggiungi-conversione-btn">Aggiungi conversione</button>
-        <button type="button" class="btn-secondary" id="chiudi-conversioni-btn">Chiudi</button>
-      </div>
     </section>
   </main>
 
